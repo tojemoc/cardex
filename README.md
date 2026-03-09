@@ -1,0 +1,2 @@
+# vibecoded-stocard
+Self explanatory
