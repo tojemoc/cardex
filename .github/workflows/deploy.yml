@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - vite-rewrite
   workflow_dispatch: 
 
 jobs:
