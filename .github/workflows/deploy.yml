@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - vite-rewrite
   workflow_dispatch: 
 
 jobs:
@@ -12,23 +13,56 @@ jobs:
     name: Deploy Worker
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install worker deps
+        working-directory: worker
+        run: npm ci
+
+      - name: Type-check worker
+        working-directory: worker
+        run: npm run type-check
+
       - name: Deploy Cardex API Worker
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
-          command: deploy
+          command:          deploy
 
   deploy-pages:
     runs-on: ubuntu-latest
-    name: Deploy Pages
+    name: Deploy Frontend
     needs: deploy-worker
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy Cardex Frontend to Pages
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Type-check frontend
+        run: npm run type-check
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          apiToken:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy public --project-name=vibecoded-stocard
+          command:   pages deploy dist --project-name=vibecoded-stocard

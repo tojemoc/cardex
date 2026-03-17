@@ -1,116 +1,151 @@
-# Cardex
+# Cardex — Loyalty Wallet
 
-Cardex is a single-file, offline-first loyalty wallet.
+A PWA loyalty card wallet with passkey (WebAuthn) + magic link auth and Cloudflare KV sync.
 
-## Added persistence/sync proposal (Cloudflare Workers)
-
-The app now supports **optional cloud snapshot sync** on top of local `localStorage` persistence.
-
-### What is implemented in the app
-
-- Local-first writes are still immediate (`localStorage` remains source of truth on device).
-- New **Cloud sync** settings section lets you:
-  - configure Worker URL + vault/user id + sync token,
-  - push local cards to cloud,
-  - pull cloud cards to the device,
-  - toggle auto-sync after local changes.
-- Conflict handling is simple and predictable:
-  - each snapshot carries `updatedAt`,
-  - pull warns before replacing local data if local timestamp appears newer,
-  - worker accepts last-write-wins by timestamp.
-
-## Cloudflare Worker backend
-
-Create `workers/cardex-sync-worker.js` and deploy with Wrangler.
-
-```js
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    const match = url.pathname.match(/^\/sync\/([^/]+)$/);
-    if (!match) return json({ error: 'Not found' }, 404);
-
-    const userId = decodeURIComponent(match[1]);
-    const token = request.headers.get('x-sync-token') || '';
-    if (!env.SYNC_TOKEN || token !== env.SYNC_TOKEN) {
-      return json({ error: 'Unauthorized' }, 401);
-    }
-
-    const key = `snapshot:${userId}`;
-
-    if (request.method === 'GET') {
-      const raw = await env.CARDEX_SYNC.get(key);
-      if (!raw) return json({ error: 'No snapshot' }, 404);
-      return new Response(raw, { headers: { 'content-type': 'application/json' } });
-    }
-
-    if (request.method === 'PUT') {
-      const body = await request.json().catch(() => null);
-      if (!body || !Array.isArray(body.cards)) return json({ error: 'Invalid payload' }, 400);
-
-      const incoming = {
-        cards: body.cards,
-        updatedAt: body.updatedAt || new Date().toISOString(),
-        deviceId: body.deviceId || 'unknown',
-      };
-
-      const currentRaw = await env.CARDEX_SYNC.get(key);
-      if (currentRaw) {
-        const current = JSON.parse(currentRaw);
-        if (Date.parse(current.updatedAt || 0) > Date.parse(incoming.updatedAt || 0)) {
-          return json(current, 409); // existing snapshot is newer
-        }
-      }
-
-      await env.CARDEX_SYNC.put(key, JSON.stringify(incoming));
-      return json(incoming, 200);
-    }
-
-    return json({ error: 'Method not allowed' }, 405);
-  },
-};
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
+```
+cardex/
+├── src/                  # Vite + TypeScript frontend
+│   ├── api.ts            # All Worker fetch calls
+│   ├── types.ts          # Shared types
+│   ├── main.ts           # App entry, event wiring
+│   ├── auth/
+│   │   ├── passkey.ts    # WebAuthn register / login
+│   │   ├── magic.ts      # Magic link send / verify
+│   │   └── session.ts    # JWT storage & restore
+│   ├── cards/
+│   │   ├── store.ts      # In-memory state + localStorage
+│   │   ├── sync.ts       # Push / pull against Worker
+│   │   └── merge.ts      # Merge strategy (remote-wins)
+│   ├── ui/
+│   │   ├── auth.ts       # Auth screen, panel switching
+│   │   ├── cards.ts      # Card grid, detail, add/edit
+│   │   ├── barcode.ts    # JsBarcode + QRCode rendering
+│   │   └── toast.ts      # Toast + sync indicator
+│   └── scanner/
+│       └── scanner.ts    # Camera scan stub (roadmap)
+├── worker/               # Cloudflare Worker (TypeScript)
+│   └── src/
+│       ├── index.ts      # Router
+│       ├── cards.ts      # GET/POST /cards
+│       ├── types.ts      # Env + KV value types
+│       ├── auth/
+│       │   ├── passkey.ts # WebAuthn ceremonies
+│       │   ├── magic.ts   # Magic link + Brevo email
+│       │   └── jwt.ts     # HS256 issue / verify
+│       └── lib/
+│           ├── cbor.ts    # Minimal CBOR decoder
+│           ├── cose.ts    # COSE sig verification
+│           ├── encoding.ts# base64url helpers
+│           ├── http.ts    # CORS + jsonResponse
+│           └── kv.ts      # Typed KV helpers
+├── public/               # Static assets + PWA icons
+├── index.html
+├── vite.config.ts
+├── tsconfig.json
+├── package.json
+└── deploy.yml            # → copy to .github/workflows/
 ```
 
-### Example Wrangler setup
+---
 
-```toml
-name = "cardex-sync"
-main = "workers/cardex-sync-worker.js"
-compatibility_date = "2026-01-01"
+## Prerequisites
 
-[[kv_namespaces]]
-binding = "CARDEX_SYNC"
-id = "<prod-kv-id>"
-preview_id = "<preview-kv-id>"
-```
+- Node.js 20+
+- A [Cloudflare](https://cloudflare.com) account
+- A [Brevo](https://brevo.com) account (free tier is fine)
 
-Set worker secret:
+---
+
+## 1 — Worker setup
 
 ```bash
-wrangler secret put SYNC_TOKEN
+cd worker
+npm install
+
+# Create the KV namespace
+wrangler kv:namespace create CARDEX_KV
+# Copy the returned id into worker/wrangler.toml → kv_namespaces[0].id
+
+# Edit wrangler.toml [vars] — set your Pages domain:
+#   FRONTEND_ORIGIN = "https://your-project.pages.dev"
+#   FRONTEND_RP_ID  = "your-project.pages.dev"
+#   EMAIL_FROM      = "noreply@yourdomain.com"
+#   EMAIL_FROM_NAME = "Cardex"
+
+# Set secrets (never committed)
+wrangler secret put JWT_SECRET      # paste any long random string
+wrangler secret put BREVO_API_KEY   # xkeysib-... from app.brevo.com
 ```
 
-Deploy:
+---
+
+## 2 — Frontend setup
 
 ```bash
-wrangler deploy
+# In the repo root
+npm install
+
+cp .env.example .env.local
+# Edit .env.local:
+#   VITE_API_URL=https://cardex-api.YOUR-SUBDOMAIN.workers.dev
 ```
 
-Then configure Cardex settings with:
+---
 
-- Worker URL: `https://cardex-sync.<subdomain>.workers.dev`
-- Vault/user id: any shared id you use across devices
-- Sync token: same value used for `SYNC_TOKEN`
+## 3 — Local development
 
-## Notes / future improvements
+```bash
+# Terminal 1 — Worker
+cd worker && npm run dev    # http://localhost:8787
 
-- Current design is snapshot sync (simple and robust for small card sets).
-- To support true multi-device merge semantics, evolve to per-card CRDT/version vectors.
-- For stronger auth, replace static token with Cloudflare Access/JWT or per-user signed tokens.
+# Terminal 2 — Frontend
+npm run dev                 # http://localhost:5173
+```
+
+> Passkeys are domain-bound. For local dev, Chrome on localhost works fine.  
+> Make sure `VITE_API_URL=http://localhost:8787` in `.env.local`.
+
+---
+
+## 4 — Deploy
+
+```bash
+# Worker
+cd worker && npm run deploy
+
+# Frontend
+npm run build
+wrangler pages deploy dist --project-name=your-project
+```
+
+Or push to `master` — GitHub Actions (`deploy.yml`) handles both automatically.
+
+### GitHub Actions secrets needed
+
+| Secret | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers + Pages permissions |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
+| `VITE_API_URL` | Your deployed Worker URL |
+
+---
+
+## Roadmap
+
+- [ ] **Camera barcode scanning** — `src/scanner/scanner.ts` is stubbed, ready for `BarcodeDetector` implementation
+- [ ] **Family / shared sync** — update `src/cards/merge.ts` with `updatedAt` conflict resolution
+- [ ] **PWA install prompt** — Vite PWA plugin already configured, just needs an install button wired in `main.ts`
+- [ ] **Multi-device passkey management** — list + revoke credentials via new Worker endpoints
+
+---
+
+## KV key schema
+
+| Key | Value |
+|---|---|
+| `user:{userId}` | `{ id, username, email, createdAt }` |
+| `cred:{credentialId}` | `{ userId, publicKeyCose, counter, transports }` |
+| `challenge:{token}` | `{ userId?, email?, type }` — TTL 5 min |
+| `magiclink:{token}` | `{ userId, email, expires }` — TTL 15 min |
+| `email:{email}` | `userId` |
+| `cards:{userId}` | `Card[]` |
