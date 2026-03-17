@@ -243,10 +243,10 @@
     <div class="auth-card" id="auth-register-panel" style="display:none">
       <div>
         <h2>Create account</h2>
-        <p>Register a passkey — or skip it and use magic link to sign in from any device.</p>
+        <p>Enter your email to register a passkey. Your email ties your passkey and magic link to the same account.</p>
       </div>
       <div class="auth-error" id="register-error"></div>
-      <input class="auth-input" type="text" id="reg-username" placeholder="Choose a username" autocomplete="username" maxlength="32" />
+      <input class="auth-input" type="email" id="reg-email" placeholder="your@email.com" autocomplete="email" onkeydown="if(event.key==='Enter') registerPasskey()" />
       <button class="passkey-btn" onclick="registerPasskey()" id="register-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         Register Passkey
@@ -520,11 +520,11 @@ function b64urlDecode(s) {
 
 // ── REGISTER ──────────────────────────────────────────────────
 async function registerPasskey() {
-  const username = document.getElementById('reg-username').value.trim();
-  if (!username || username.length < 2) { showAuthError('register','Username must be at least 2 characters'); return; }
+  const email = document.getElementById('reg-email').value.trim();
+  if (!email || !email.includes('@')) { showAuthError('register', 'Please enter a valid email address'); return; }
   setAuthLoading('register', true);
   try {
-    const { options, error } = await api('/auth/register/begin','POST',{ username });
+    const { options, error } = await api('/auth/register/begin', 'POST', { email });
     if (error) { showAuthError('register', error); return; }
 
     const cred = await navigator.credentials.create({ publicKey: {
