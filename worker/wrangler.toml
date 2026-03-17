@@ -17,3 +17,9 @@ id      = "c10dfc1b686d4d95a207bc18f5f96573"
 # ── Local dev ────────────────────────────────────────────────
 [dev]
 port = 8787
+
+[vars]
+FRONTEND_ORIGIN  = "https://cardex.tjm.sk"
+FRONTEND_RP_ID   = "cardex.tjm.sk"
+EMAIL_FROM       = "cardex@tjm.sk"
+EMAIL_FROM_NAME  = "Cardex Team"
