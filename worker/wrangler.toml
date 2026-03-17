@@ -1,25 +1,21 @@
-name = "cardex-api"
-main = "index.js"
-compatibility_date = "2024-01-01"
-compatibility_flags = ["nodejs_compat"]
+name                  = "cardex-api"
+main                  = "src/index.ts"
+compatibility_date    = "2024-01-01"
+compatibility_flags   = ["nodejs_compat"]
 
-# ── KV Namespace ──────────────────────────────────────────────
-# Create with: wrangler kv:namespace create CARDEX_KV
-# Then paste the id below
 [[kv_namespaces]]
 binding = "CARDEX_KV"
-id      = "c10dfc1b686d4d95a207bc18f5f96573"
-
-# ── Secrets (set via CLI, never commit) ───────────────────────
-# wrangler secret put JWT_SECRET
-# → paste a long random string when prompted
-
-# ── Local dev ────────────────────────────────────────────────
-[dev]
-port = 8787
+id      = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
 
 [vars]
-FRONTEND_ORIGIN  = "https://cardex.tjm.sk"
-FRONTEND_RP_ID   = "cardex.tjm.sk"
-EMAIL_FROM       = "cardex@tjm.sk"
-EMAIL_FROM_NAME  = "Cardex Team"
+FRONTEND_ORIGIN  = "https://vibecoded-stocard.pages.dev"
+FRONTEND_RP_ID   = "vibecoded-stocard.pages.dev"
+EMAIL_FROM       = "noreply@yourdomain.com"
+EMAIL_FROM_NAME  = "Cardex"
+
+# Secrets — set via CLI, never commit values:
+#   wrangler secret put JWT_SECRET
+#   wrangler secret put BREVO_API_KEY
+
+[dev]
+port = 8787
