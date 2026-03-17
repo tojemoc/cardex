@@ -15,16 +15,20 @@ export function parseAuthenticatorData(
   buf:               Uint8Array,
   includeCredential = false,
 ): AuthenticatorData {
-  const counter = new DataView(buf.buffer, buf.byteOffset + 33, 4).getUint32(0);
-  const AT      = (buf[32] & 0x40) !== 0;
+  const counter   = new DataView(buf.buffer, buf.byteOffset + 33, 4).getUint32(0);
+  const flagsByte = buf[32] ?? 0;
+  const AT        = (flagsByte & 0x40) !== 0;
 
   let credentialId: Uint8Array | null        = null;
   let credentialPublicKey: Uint8Array | null = null;
 
   if (includeCredential && AT) {
-    let off          = 37 + 16; // rpIdHash(32) + flags(1) + counter(4) + aaguid(16)
-    const credIdLen  = (buf[off] << 8) | buf[off + 1]; off += 2;
-    credentialId     = buf.slice(off, off + credIdLen); off += credIdLen;
+    let off           = 37 + 16; // rpIdHash(32) + flags(1) + counter(4) + aaguid(16)
+    const hi          = buf[off] ?? 0;
+    const lo          = buf[off + 1] ?? 0;
+    const credIdLen   = (hi << 8) | lo;
+    off += 2;
+    credentialId      = buf.slice(off, off + credIdLen); off += credIdLen;
     credentialPublicKey = buf.slice(off);
   }
 

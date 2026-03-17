@@ -35,7 +35,12 @@ export async function verifyToken(request: Request, env: Env): Promise<TokenResu
   if (!token) return { error: 'Missing token' };
 
   try {
-    const [hB64, pB64, sB64] = token.split('.');
+    const parts = token.split('.');
+    const hB64  = parts[0];
+    const pB64  = parts[1];
+    const sB64  = parts[2];
+    if (!hB64 || !pB64 || !sB64) return { error: 'Malformed token' };
+
     const key   = await getJwtKey(env);
     const valid = await crypto.subtle.verify(
       'HMAC',
@@ -45,10 +50,10 @@ export async function verifyToken(request: Request, env: Env): Promise<TokenResu
     );
     if (!valid) return { error: 'Invalid token' };
 
-    const payload = JSON.parse(new TextDecoder().decode(base64urlDecode(pB64)));
+    const payload = JSON.parse(new TextDecoder().decode(base64urlDecode(pB64))) as { exp: number; sub: string };
     if (payload.exp < Math.floor(Date.now() / 1000)) return { error: 'Token expired' };
 
-    return { userId: payload.sub as string };
+    return { userId: payload.sub };
   } catch {
     return { error: 'Malformed token' };
   }

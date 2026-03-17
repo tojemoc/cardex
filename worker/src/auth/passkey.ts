@@ -38,7 +38,7 @@ export async function registerBegin(request: Request, env: Env): Promise<Respons
       user: {
         id:          userId,
         name:        email,
-        displayName: user?.username ?? email.split('@')[0],
+        displayName: user?.username ?? (email.split('@')[0] ?? email),
       },
       pubKeyCredParams: [
         { alg: -7,   type: 'public-key' }, // ES256

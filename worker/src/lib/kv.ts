@@ -68,7 +68,7 @@ export async function upsertUserByEmail(
   if (existing) return existing;
 
   const userId   = crypto.randomUUID();
-  const username = email.split('@')[0].replace(/[^a-z0-9_]/gi, '').slice(0, 20) || 'user';
+  const username = (email.split('@')[0] ?? '').replace(/[^a-z0-9_]/gi, '').slice(0, 20) || 'user';
 
   await putUser(env, { id: userId, username, email, createdAt: new Date().toISOString() });
   await putEmailIndex(env, email, userId);

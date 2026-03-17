@@ -3,8 +3,11 @@
  * and COSE public keys. Supports: uint, negint, bytes, text, array, map.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type CborValue = number | string | Uint8Array | CborValue[] | Record<string | number, CborValue>;
+// Interface breaks the circular reference that a type alias cannot express
+export type CborPrimitive = number | string | Uint8Array;
+export interface CborMap extends Record<string | number, CborValue> {}
+export interface CborArray extends Array<CborValue> {}
+export type CborValue = CborPrimitive | CborArray | CborMap;
 
 export function cborDecode(buf: Uint8Array): CborValue {
   const dv     = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
