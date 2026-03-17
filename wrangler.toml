@@ -1,8 +1,0 @@
-name = "cardex-sync"
-main = "workers/cardex-sync-worker.js"
-compatibility_date = "2026-01-01"
-
-[[kv_namespaces]]
-binding = "CARDEX_SYNC"
-id = "replace-with-prod-kv-id"
-preview_id = "replace-with-preview-kv-id"

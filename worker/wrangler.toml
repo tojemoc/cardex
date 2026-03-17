@@ -1,0 +1,19 @@
+name = "cardex-api"
+main = "index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ── KV Namespace ──────────────────────────────────────────────
+# Create with: wrangler kv:namespace create CARDEX_KV
+# Then paste the id below
+[[kv_namespaces]]
+binding = "CARDEX_KV"
+id      = "c10dfc1b686d4d95a207bc18f5f96573"
+
+# ── Secrets (set via CLI, never commit) ───────────────────────
+# wrangler secret put JWT_SECRET
+# → paste a long random string when prompted
+
+# ── Local dev ────────────────────────────────────────────────
+[dev]
+port = 8787

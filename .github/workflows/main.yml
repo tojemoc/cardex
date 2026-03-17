@@ -6,15 +6,28 @@ on:
       - master
 
 jobs:
-  deploy:
+  deploy-worker:
     runs-on: ubuntu-latest
-    name: Deploy
+    name: Deploy Worker
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy
+      - name: Deploy Cardex API Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: |
-            pages deploy public --project-name=vibecoded-stocard
+          workingDirectory: worker
+          command: deploy
+
+  deploy-pages:
+    runs-on: ubuntu-latest
+    name: Deploy Pages
+    needs: deploy-worker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Cardex Frontend to Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy public --project-name=vibecoded-stocard

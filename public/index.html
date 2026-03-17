@@ -8,18 +8,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Cardex — Loyalty Wallet</title>
-
-  <!-- PWA Manifest inline via blob -->
   <link id="manifest-link" rel="manifest" />
-
-  <!-- JsBarcode for rendering barcodes -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
-
-  <!-- QRCode.js for QR codes -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
   <style>
-    /* ===== DESIGN SYSTEM ===== */
     :root {
       --bg:        #0a0a0f;
       --surface:   #13131a;
@@ -33,699 +25,329 @@
       --danger:    #fa4d6d;
       --radius:    18px;
       --radius-sm: 10px;
-      --shadow:    0 8px 40px rgba(0,0,0,0.6);
       --font-body: 'DM Sans', system-ui, sans-serif;
       --font-mono: 'DM Mono', 'Courier New', monospace;
     }
-
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+    #app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; position: relative; overflow: hidden; }
 
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-body);
-      -webkit-font-smoothing: antialiased;
-      overscroll-behavior: none;
-    }
+    /* AUTH */
+    .auth-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 32px; gap: 0; }
+    .auth-logo { font-size: 38px; font-weight: 700; letter-spacing: -1px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 6px; }
+    .auth-logo span { -webkit-text-fill-color: var(--muted); }
+    .auth-tagline { font-size: 15px; color: var(--muted); margin-bottom: 48px; text-align: center; }
+    .auth-card { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; display: flex; flex-direction: column; gap: 16px; }
+    .auth-card h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .auth-card p  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .auth-input { width: 100%; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; color: var(--text); font-size: 15px; font-family: var(--font-body); outline: none; transition: border-color 0.2s; }
+    .auth-input:focus { border-color: var(--accent); }
+    .auth-input::placeholder { color: var(--muted); }
+    .passkey-btn { width: 100%; padding: 16px; border-radius: var(--radius-sm); border: none; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; font-size: 15px; font-weight: 600; cursor: pointer; font-family: var(--font-body); display: flex; align-items: center; justify-content: center; gap: 10px; transition: opacity 0.15s, transform 0.1s; -webkit-tap-highlight-color: transparent; }
+    .passkey-btn:active { transform: scale(0.97); opacity: 0.9; }
+    .passkey-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .passkey-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .auth-divider { display: flex; align-items: center; gap: 12px; }
+    .auth-divider hr { flex: 1; border: none; border-top: 1px solid var(--border); }
+    .auth-divider span { font-size: 12px; color: var(--muted); }
+    .auth-link { font-size: 14px; color: var(--accent); cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; }
+    .auth-link:hover { text-decoration: underline; }
+    .auth-error { background: rgba(250,77,109,0.1); border: 1px solid rgba(250,77,109,0.3); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; color: var(--danger); display: none; }
+    .auth-error.show { display: block; }
 
-    #app {
-      max-width: 480px;
-      margin: 0 auto;
-      min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      overflow: hidden;
-    }
+    /* HEADER */
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 20px 20px 12px; position: sticky; top: 0; z-index: 10; background: linear-gradient(to bottom, var(--bg) 70%, transparent); }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .logo span { -webkit-text-fill-color: var(--muted); }
+    .header-right { display: flex; align-items: center; gap: 8px; }
 
-    /* ===== HEADER ===== */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 20px 20px 12px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: linear-gradient(to bottom, var(--bg) 70%, transparent);
-    }
+    .sync-indicator { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); }
+    .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .sync-dot.synced  { background: var(--accent3); }
+    .sync-dot.syncing { background: var(--accent); animation: pulse 1s infinite; }
+    .sync-dot.error   { background: var(--danger); }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
 
-    .logo {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
+    .user-pill { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px 4px 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .user-avatar { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; }
 
-    .logo span { color: var(--muted); -webkit-text-fill-color: var(--muted); }
+    /* CHIPS */
+    .chips-row { display: flex; gap: 8px; padding: 0 20px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .chips-row::-webkit-scrollbar { display: none; }
+    .chip { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; flex-shrink: 0; -webkit-tap-highlight-color: transparent; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+    .chip.active { background: var(--accent); color: white; border-color: var(--accent); }
 
-    .header-actions { display: flex; gap: 8px; }
-
-    .icon-btn {
-      width: 40px; height: 40px;
-      border-radius: 50%;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .icon-btn:active { transform: scale(0.92); background: var(--card-bg); }
-    .icon-btn svg { width: 18px; height: 18px; }
-
-    /* ===== SEARCH ===== */
-    .search-wrap {
-      padding: 0 20px 16px;
-    }
-    .search-input {
-      width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 12px 16px 12px 42px;
-      color: var(--text);
-      font-size: 15px;
-      font-family: var(--font-body);
-      outline: none;
-      transition: border-color 0.2s;
-    }
+    /* SEARCH */
+    .search-wrap { padding: 0 20px 16px; }
+    .search-wrap-inner { position: relative; }
+    .search-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px 12px 42px; color: var(--text); font-size: 15px; font-family: var(--font-body); outline: none; transition: border-color 0.2s; }
     .search-input:focus { border-color: var(--accent); }
     .search-input::placeholder { color: var(--muted); }
-    .search-wrap-inner { position: relative; }
-    .search-icon {
-      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-      color: var(--muted); pointer-events: none;
-    }
+    .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
     .search-icon svg { width: 16px; height: 16px; }
 
-    /* ===== CARD GRID ===== */
+    /* CARD GRID */
     .cards-section { padding: 0 20px; flex: 1; }
-    .section-label {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 14px;
-    }
-
-    .card-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      padding-bottom: 120px;
-    }
-
-    /* ===== LOYALTY CARD TILE ===== */
-    .card-tile {
-      border-radius: var(--radius);
-      padding: 18px 16px 14px;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      min-height: 120px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      transition: transform 0.15s, box-shadow 0.15s;
-      -webkit-tap-highlight-color: transparent;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
+    .section-label { font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding-bottom: 120px; }
+    .card-tile { border-radius: var(--radius); padding: 18px 16px 14px; cursor: pointer; position: relative; overflow: hidden; min-height: 120px; display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.15s; -webkit-tap-highlight-color: transparent; border: 1px solid rgba(255,255,255,0.06); }
     .card-tile:active { transform: scale(0.96); }
+    .card-tile::before { content: ''; position: absolute; inset: 0; opacity: 0.12; background: radial-gradient(ellipse at top right, white, transparent 70%); }
+    .card-tile-icon { width: 38px; height: 38px; border-radius: 10px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 8px; }
+    .card-tile-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white; }
+    .card-tile-number { font-size: 10px; font-family: var(--font-mono); color: rgba(255,255,255,0.6); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-tile-points { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); margin-top: 10px; }
 
-    .card-tile::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      opacity: 0.12;
-      background: radial-gradient(ellipse at top right, white, transparent 70%);
-    }
-
-    .card-tile-icon {
-      width: 38px; height: 38px;
-      border-radius: 10px;
-      background: rgba(255,255,255,0.15);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
-      margin-bottom: 8px;
-    }
-
-    .card-tile-name {
-      font-size: 14px;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      color: white;
-    }
-
-    .card-tile-number {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: rgba(255,255,255,0.6);
-      margin-top: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .card-tile-points {
-      font-size: 11px;
-      font-weight: 600;
-      color: rgba(255,255,255,0.8);
-      margin-top: 10px;
-    }
-
-    /* ===== EMPTY STATE ===== */
-    .empty-state {
-      display: flex; flex-direction: column; align-items: center;
-      justify-content: center; padding: 60px 30px; text-align: center;
-      gap: 12px; color: var(--muted);
-    }
+    /* EMPTY */
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 30px; text-align: center; gap: 12px; color: var(--muted); }
     .empty-state svg { width: 56px; height: 56px; opacity: 0.3; }
     .empty-state h3 { font-size: 18px; font-weight: 600; color: var(--text); }
     .empty-state p { font-size: 14px; line-height: 1.6; }
 
-    /* ===== FAB ===== */
-    .fab {
-      position: fixed;
-      bottom: calc(80px + env(safe-area-inset-bottom));
-      right: 50%;
-      transform: translateX(calc(50% + 160px));
-      width: 58px; height: 58px;
-      border-radius: 50%;
-      border: none;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      color: white;
-      font-size: 26px;
-      cursor: pointer;
-      box-shadow: 0 6px 24px rgba(124,109,250,0.5);
-      display: flex; align-items: center; justify-content: center;
-      transition: transform 0.15s, box-shadow 0.15s;
-      -webkit-tap-highlight-color: transparent;
-      z-index: 20;
-    }
+    /* FAB */
+    .fab { position: fixed; bottom: calc(80px + env(safe-area-inset-bottom)); right: 50%; transform: translateX(calc(50% + 160px)); width: 58px; height: 58px; border-radius: 50%; border: none; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; cursor: pointer; box-shadow: 0 6px 24px rgba(124,109,250,0.5); display: flex; align-items: center; justify-content: center; transition: transform 0.15s; -webkit-tap-highlight-color: transparent; z-index: 20; }
     .fab:active { transform: translateX(calc(50% + 160px)) scale(0.92); }
-    @media (max-width: 480px) {
-      .fab { right: 20px; transform: none; }
-      .fab:active { transform: scale(0.92); }
-    }
+    @media (max-width: 480px) { .fab { right: 20px; transform: none; } .fab:active { transform: scale(0.92); } }
 
-    /* ===== BOTTOM NAV ===== */
-    .bottom-nav {
-      position: fixed;
-      bottom: 0; left: 50%; transform: translateX(-50%);
-      width: 100%; max-width: 480px;
-      background: rgba(13,13,20,0.92);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-top: 1px solid var(--border);
-      display: flex;
-      padding-bottom: env(safe-area-inset-bottom);
-      z-index: 15;
-    }
-    .nav-tab {
-      flex: 1; padding: 12px 8px 10px;
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
-      cursor: pointer;
-      color: var(--muted);
-      font-size: 10px; font-weight: 500;
-      -webkit-tap-highlight-color: transparent;
-      transition: color 0.15s;
-    }
+    /* NAV */
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: rgba(13,13,20,0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--border); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 15; }
+    .nav-tab { flex: 1; padding: 12px 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; color: var(--muted); font-size: 10px; font-weight: 500; -webkit-tap-highlight-color: transparent; transition: color 0.15s; }
     .nav-tab svg { width: 22px; height: 22px; }
     .nav-tab.active { color: var(--accent); }
 
-    /* ===== MODAL OVERLAY ===== */
-    .overlay {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      z-index: 50;
-      align-items: flex-end;
-    }
+    /* OVERLAY */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 50; align-items: flex-end; }
     .overlay.open { display: flex; }
-
-    .sheet {
-      background: var(--surface);
-      border-radius: var(--radius) var(--radius) 0 0;
-      width: 100%;
-      max-height: 92dvh;
-      overflow-y: auto;
-      padding: 0 0 calc(24px + env(safe-area-inset-bottom));
-      animation: slideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-    }
-    @keyframes slideUp {
-      from { transform: translateY(100%); opacity: 0; }
-      to   { transform: translateY(0);    opacity: 1; }
-    }
-
-    .sheet-handle {
-      width: 36px; height: 4px; border-radius: 2px;
-      background: var(--border);
-      margin: 12px auto 0;
-    }
-
-    .sheet-header {
-      padding: 20px 20px 8px;
-      display: flex; align-items: center; justify-content: space-between;
-    }
+    .sheet { background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; width: 100%; max-height: 92dvh; overflow-y: auto; padding: 0 0 calc(24px + env(safe-area-inset-bottom)); animation: slideUp 0.3s cubic-bezier(0.32,0.72,0,1); scrollbar-width: none; }
+    .sheet::-webkit-scrollbar { display: none; }
+    @keyframes slideUp { from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1} }
+    .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 12px auto 0; }
+    .sheet-header { padding: 20px 20px 8px; display: flex; align-items: center; justify-content: space-between; }
     .sheet-title { font-size: 20px; font-weight: 700; }
-
-    .close-btn {
-      width: 32px; height: 32px; border-radius: 50%;
-      border: none; background: var(--card-bg);
-      color: var(--muted); cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      -webkit-tap-highlight-color: transparent;
-    }
+    .close-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--card-bg); color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
     .close-btn svg { width: 16px; height: 16px; }
 
-    /* ===== CARD DETAIL VIEW ===== */
-    .card-detail-header {
-      margin: 0 20px 20px;
-      border-radius: var(--radius);
-      padding: 28px 24px;
-      min-height: 160px;
-      display: flex; flex-direction: column; justify-content: space-between;
-      position: relative; overflow: hidden;
-    }
-    .card-detail-header::before {
-      content: '';
-      position: absolute; inset: 0;
-      opacity: 0.1;
-      background: radial-gradient(ellipse at top right, white, transparent 70%);
-    }
+    /* DETAIL */
+    .card-detail-header { margin: 0 20px 20px; border-radius: var(--radius); padding: 28px 24px; min-height: 160px; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; }
+    .card-detail-header::before { content:''; position:absolute;inset:0;opacity:.1;background:radial-gradient(ellipse at top right,white,transparent 70%); }
     .card-detail-name { font-size: 24px; font-weight: 700; color: white; }
     .card-detail-sub  { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 4px; }
     .card-detail-icon { font-size: 40px; margin-bottom: 8px; }
-    .card-detail-points {
-      font-size: 13px; font-weight: 600;
-      color: rgba(255,255,255,0.85);
-    }
-
-    /* ===== BARCODE AREA ===== */
-    .barcode-section {
-      margin: 0 20px 20px;
-      background: white;
-      border-radius: var(--radius);
-      padding: 24px 16px 16px;
-      display: flex; flex-direction: column; align-items: center; gap: 12px;
-    }
+    .card-detail-points { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); }
+    .barcode-section { margin: 0 20px 20px; background: white; border-radius: var(--radius); padding: 24px 16px 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
     .barcode-section svg, .barcode-section canvas { max-width: 100%; }
-    #qr-container canvas { border-radius: 4px; }
-    .barcode-number {
-      font-family: var(--font-mono);
-      font-size: 14px; color: #333;
-      letter-spacing: 2px;
-    }
-    .barcode-type-toggle {
-      display: flex; gap: 8px; margin-bottom: 4px;
-    }
-    .toggle-btn {
-      padding: 6px 16px; border-radius: 20px;
-      border: 1px solid #ccc; background: transparent;
-      font-size: 12px; cursor: pointer; font-family: var(--font-body);
-      transition: background 0.15s, color 0.15s;
-    }
+    .barcode-number { font-family: var(--font-mono); font-size: 14px; color: #333; letter-spacing: 2px; }
+    .barcode-type-toggle { display: flex; gap: 8px; }
+    .toggle-btn { padding: 6px 16px; border-radius: 20px; border: 1px solid #ccc; background: transparent; font-size: 12px; cursor: pointer; font-family: var(--font-body); }
     .toggle-btn.active { background: #111; color: white; border-color: #111; }
-
-    /* ===== ACTIONS ===== */
-    .actions-row {
-      display: flex; gap: 10px; padding: 0 20px;
-    }
-    .btn {
-      flex: 1; padding: 14px;
-      border-radius: var(--radius-sm); border: none;
-      font-size: 14px; font-weight: 600;
-      cursor: pointer; font-family: var(--font-body);
-      transition: opacity 0.15s, transform 0.1s;
-      -webkit-tap-highlight-color: transparent;
-    }
+    .actions-row { display: flex; gap: 10px; padding: 0 20px; }
+    .btn { flex: 1; padding: 14px; border-radius: var(--radius-sm); border: none; font-size: 14px; font-weight: 600; cursor: pointer; font-family: var(--font-body); transition: opacity 0.15s, transform 0.1s; -webkit-tap-highlight-color: transparent; }
     .btn:active { transform: scale(0.97); }
-    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
-    .btn-danger  { background: rgba(250,77,109,0.15); color: var(--danger); border: 1px solid rgba(250,77,109,0.3); }
+    .btn-primary   { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+    .btn-danger    { background: rgba(250,77,109,0.15); color: var(--danger); border: 1px solid rgba(250,77,109,0.3); }
     .btn-secondary { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); }
+    .brightness-hint { font-size: 11px; color: var(--muted); text-align: center; padding: 0 20px 8px; }
 
-    /* ===== ADD CARD FORM ===== */
+    /* FORM */
     .form-body { padding: 8px 20px 0; display: flex; flex-direction: column; gap: 16px; }
-
     .field { display: flex; flex-direction: column; gap: 6px; }
     .field label { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
-
-    .field input, .field select, .field textarea {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 13px 16px;
-      color: var(--text);
-      font-size: 15px;
-      font-family: var(--font-body);
-      outline: none;
-      transition: border-color 0.2s;
-      width: 100%;
-    }
+    .field input, .field select { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 13px 16px; color: var(--text); font-size: 15px; font-family: var(--font-body); outline: none; transition: border-color 0.2s; width: 100%; }
     .field input:focus, .field select:focus { border-color: var(--accent); }
     .field select { appearance: none; }
     .field input::placeholder { color: var(--muted); }
-
-    .color-picker-row {
-      display: flex; gap: 10px; flex-wrap: wrap;
-    }
-    .color-swatch {
-      width: 36px; height: 36px; border-radius: 50%;
-      cursor: pointer; border: 3px solid transparent;
-      transition: border-color 0.15s, transform 0.1s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .color-swatch:active { transform: scale(0.9); }
+    .color-picker-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .color-swatch { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: border-color 0.15s; -webkit-tap-highlight-color: transparent; }
     .color-swatch.selected { border-color: white; }
-
-    .emoji-picker-row {
-      display: flex; gap: 10px; flex-wrap: wrap;
-    }
-    .emoji-opt {
-      width: 42px; height: 42px; border-radius: 10px;
-      background: var(--card-bg); border: 2px solid transparent;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px; cursor: pointer;
-      transition: border-color 0.15s, transform 0.1s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .emoji-opt:active { transform: scale(0.9); }
+    .emoji-picker-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .emoji-opt { width: 42px; height: 42px; border-radius: 10px; background: var(--card-bg); border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
     .emoji-opt.selected { border-color: var(--accent); }
-
-    .barcode-preview-wrap {
-      background: white; border-radius: var(--radius-sm);
-      padding: 16px; display: flex; flex-direction: column;
-      align-items: center; gap: 8px; min-height: 80px;
-    }
+    .barcode-preview-wrap { background: white; border-radius: var(--radius-sm); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 80px; }
     .barcode-preview-wrap svg { max-width: 100%; }
     .preview-error { font-size: 12px; color: #999; text-align: center; }
 
-    /* ===== SETTINGS PAGE ===== */
+    /* SETTINGS */
     .page { padding: 0 20px; padding-bottom: 100px; display: none; }
     .page.active { display: block; }
-
     .settings-section { margin-bottom: 28px; }
     .settings-section h3 { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px; }
-
-    .settings-item {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 16px;
-      display: flex; align-items: center; justify-content: space-between;
-      cursor: pointer;
-      margin-bottom: 6px;
-      -webkit-tap-highlight-color: transparent;
-    }
+    .settings-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 6px; -webkit-tap-highlight-color: transparent; }
     .settings-item:active { background: var(--card-bg); }
     .settings-item-left { display: flex; align-items: center; gap: 12px; }
     .settings-item-icon { width: 36px; height: 36px; border-radius: 9px; background: var(--card-bg); display: flex; align-items: center; justify-content: center; font-size: 18px; }
     .settings-item-text h4 { font-size: 15px; font-weight: 500; }
     .settings-item-text p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
-
-    .toggle-switch {
-      width: 44px; height: 26px; border-radius: 13px;
-      background: var(--border); position: relative;
-      transition: background 0.2s; cursor: pointer; border: none;
-      flex-shrink: 0;
-    }
-    .toggle-switch::after {
-      content: '';
-      position: absolute; top: 3px; left: 3px;
-      width: 20px; height: 20px; border-radius: 50%;
-      background: white; transition: transform 0.2s;
-    }
+    .toggle-switch { width: 44px; height: 26px; border-radius: 13px; background: var(--border); position: relative; transition: background 0.2s; cursor: pointer; border: none; flex-shrink: 0; }
+    .toggle-switch::after { content:''; position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:white;transition:transform 0.2s; }
     .toggle-switch.on { background: var(--accent); }
     .toggle-switch.on::after { transform: translateX(18px); }
 
-    /* ===== TOAST ===== */
-    .toast {
-      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
-      background: var(--text); color: var(--bg);
-      padding: 10px 20px; border-radius: 20px;
-      font-size: 14px; font-weight: 500;
-      opacity: 0; transition: opacity 0.2s, transform 0.2s;
-      pointer-events: none; z-index: 999; white-space: nowrap;
-    }
+    /* TOAST */
+    .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 500; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 999; white-space: nowrap; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* ===== CHIPS / FILTER ===== */
-    .chips-row {
-      display: flex; gap: 8px; padding: 0 20px 16px;
-      overflow-x: auto; -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .chips-row::-webkit-scrollbar { display: none; }
-    .chip {
-      padding: 6px 14px; border-radius: 20px;
-      border: 1px solid var(--border); background: var(--surface);
-      color: var(--muted); font-size: 13px; font-weight: 500;
-      cursor: pointer; white-space: nowrap; flex-shrink: 0;
-      -webkit-tap-highlight-color: transparent;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
-    }
-    .chip.active { background: var(--accent); color: white; border-color: var(--accent); }
-
-    /* Scrollbar global hide */
-    .sheet { scrollbar-width: none; }
-    .sheet::-webkit-scrollbar { display: none; }
-
-    /* Screen brightness hint */
-    .brightness-hint {
-      font-size: 11px; color: var(--muted); text-align: center;
-      padding: 0 20px 8px;
-    }
+    /* ACCOUNT SHEET */
+    .account-info { padding: 20px 20px 8px; display: flex; align-items: center; gap: 14px; }
+    .account-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: white; flex-shrink: 0; }
+    .account-name { font-size: 18px; font-weight: 700; }
+    .account-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .account-menu { padding: 8px 20px 0; }
+    .account-menu-item { display: flex; align-items: center; gap: 14px; padding: 16px; background: var(--card-bg); border-radius: var(--radius-sm); margin-bottom: 8px; cursor: pointer; -webkit-tap-highlight-color: transparent; font-size: 15px; }
+    .account-menu-item:active { opacity: 0.7; }
+    .item-icon { font-size: 20px; }
   </style>
 </head>
 <body>
-
 <div id="app">
 
-  <!-- ===== HEADER ===== -->
-  <header class="header">
-    <div class="logo">Cardex<span>.</span></div>
-    <div class="header-actions">
-      <button class="icon-btn" onclick="openSearch()" title="Search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-logo">Cardex<span>.</span></div>
+    <div class="auth-tagline">Your loyalty cards, everywhere.</div>
+
+    <div class="auth-card" id="auth-login-panel">
+      <div>
+        <h2>Welcome back</h2>
+        <p>Use your passkey (Face ID / fingerprint) to sign in — no password needed.</p>
+      </div>
+      <div class="auth-error" id="login-error"></div>
+      <button class="passkey-btn" onclick="loginWithPasskey()" id="login-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2z"/><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="18" cy="18" r="3" fill="currentColor" stroke="none"/><path d="M21 21l-1.5-1.5" stroke-width="2.5"/></svg>
+        Sign in with Passkey
       </button>
-    </div>
-  </header>
-
-  <!-- ===== PAGES ===== -->
-
-  <!-- Home -->
-  <div id="page-home" class="page active" style="padding:0">
-
-    <div class="chips-row" id="category-chips">
-      <div class="chip active" data-cat="all" onclick="filterByCategory(this,'all')">All</div>
-      <div class="chip" data-cat="grocery"     onclick="filterByCategory(this,'grocery')">🛒 Grocery</div>
-      <div class="chip" data-cat="pharmacy"    onclick="filterByCategory(this,'pharmacy')">💊 Pharmacy</div>
-      <div class="chip" data-cat="fashion"     onclick="filterByCategory(this,'fashion')">👗 Fashion</div>
-      <div class="chip" data-cat="coffee"      onclick="filterByCategory(this,'coffee')">☕ Coffee</div>
-      <div class="chip" data-cat="fuel"        onclick="filterByCategory(this,'fuel')">⛽ Fuel</div>
-      <div class="chip" data-cat="travel"      onclick="filterByCategory(this,'travel')">✈️ Travel</div>
-      <div class="chip" data-cat="other"       onclick="filterByCategory(this,'other')">📦 Other</div>
+      <div class="auth-divider"><hr/><span>new here?</span><hr/></div>
+      <div class="auth-link" onclick="showRegister()">Create an account →</div>
     </div>
 
-    <div class="search-wrap" id="search-bar" style="display:none">
-      <div class="search-wrap-inner">
-        <span class="search-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        </span>
-        <input class="search-input" type="text" id="search-input" placeholder="Search cards…" oninput="renderCards()" />
+    <div class="auth-card" id="auth-register-panel" style="display:none">
+      <div>
+        <h2>Create account</h2>
+        <p>Choose a username, then register your passkey. No email or password required.</p>
       </div>
-    </div>
-
-    <div class="cards-section">
-      <div class="section-label" id="cards-count">0 cards</div>
-      <div class="card-grid" id="card-grid"></div>
+      <div class="auth-error" id="register-error"></div>
+      <input class="auth-input" type="text" id="reg-username" placeholder="Choose a username" autocomplete="username" maxlength="32" />
+      <button class="passkey-btn" onclick="registerPasskey()" id="register-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Register Passkey
+      </button>
+      <div class="auth-divider"><hr/><span>have an account?</span><hr/></div>
+      <div class="auth-link" onclick="showLogin()">← Sign in</div>
     </div>
   </div>
 
-  <!-- Settings -->
-  <div id="page-settings" class="page">
-    <div style="padding-top:8px; margin-bottom:24px">
-      <div class="section-label">Settings</div>
-    </div>
-    <div class="settings-section">
-      <h3>Display</h3>
-      <div class="settings-item" onclick="toggleBrightness()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">☀️</div>
-          <div class="settings-item-text">
-            <h4>Full brightness on scan</h4>
-            <p>Auto-brighten screen when viewing a card</p>
-          </div>
+  <!-- MAIN APP -->
+  <div id="main-app" style="display:none; flex-direction:column; flex:1">
+
+    <header class="header">
+      <div class="logo">Cardex<span>.</span></div>
+      <div class="header-right">
+        <div class="sync-indicator">
+          <div class="sync-dot" id="sync-dot"></div>
+          <span id="sync-label">—</span>
         </div>
-        <button class="toggle-switch on" id="brightness-toggle"></button>
+        <div class="user-pill" onclick="openAccountSheet()">
+          <div class="user-avatar" id="user-avatar-mini">?</div>
+          <span id="user-name-mini">…</span>
+        </div>
       </div>
-      <div class="settings-item" onclick="toggleDarkMode()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">🌙</div>
-          <div class="settings-item-text">
-            <h4>Dark mode</h4>
-            <p>Always on</p>
-          </div>
-        </div>
-        <button class="toggle-switch on" id="dark-toggle"></button>
+    </header>
+
+    <div id="page-home" class="page active" style="padding:0">
+      <div class="chips-row">
+        <div class="chip active" onclick="filterByCategory(this,'all')">All</div>
+        <div class="chip" onclick="filterByCategory(this,'grocery')">🛒 Grocery</div>
+        <div class="chip" onclick="filterByCategory(this,'pharmacy')">💊 Pharmacy</div>
+        <div class="chip" onclick="filterByCategory(this,'fashion')">👗 Fashion</div>
+        <div class="chip" onclick="filterByCategory(this,'coffee')">☕ Coffee</div>
+        <div class="chip" onclick="filterByCategory(this,'fuel')">⛽ Fuel</div>
+        <div class="chip" onclick="filterByCategory(this,'travel')">✈️ Travel</div>
+        <div class="chip" onclick="filterByCategory(this,'other')">📦 Other</div>
       </div>
-    </div>
-    <div class="settings-section">
-      <h3>Data</h3>
-      <div class="settings-item" onclick="exportCards()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">📤</div>
-          <div class="settings-item-text">
-            <h4>Export cards</h4>
-            <p>Save as JSON backup</p>
-          </div>
+      <div class="search-wrap" id="search-bar" style="display:none">
+        <div class="search-wrap-inner">
+          <span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+          <input class="search-input" type="text" id="search-input" placeholder="Search cards…" oninput="renderCards()" />
         </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
-      <div class="settings-item" onclick="document.getElementById('import-input').click()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">📥</div>
-          <div class="settings-item-text">
-            <h4>Import cards</h4>
-            <p>Restore from JSON backup</p>
-          </div>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
-      <input type="file" id="import-input" accept=".json" style="display:none" onchange="importCards(event)" />
-      <div class="settings-item" onclick="clearAllCards()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">🗑️</div>
-          <div class="settings-item-text">
-            <h4>Clear all cards</h4>
-            <p>Remove all stored cards</p>
-          </div>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      <div class="cards-section">
+        <div class="section-label" id="cards-count">0 cards</div>
+        <div class="card-grid" id="card-grid"></div>
       </div>
     </div>
-    <div class="settings-section">
-      <h3>Cloud sync</h3>
-      <div class="settings-item" onclick="configureSync()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">☁️</div>
-          <div class="settings-item-text">
-            <h4>Configure Cloudflare sync</h4>
-            <p id="sync-status">Not configured</p>
-          </div>
+
+    <div id="page-settings" class="page">
+      <div style="padding-top:8px;margin-bottom:24px"><div class="section-label">Settings</div></div>
+      <div class="settings-section">
+        <h3>Display</h3>
+        <div class="settings-item" onclick="toggleBrightness()">
+          <div class="settings-item-left"><div class="settings-item-icon">☀️</div><div class="settings-item-text"><h4>Full brightness on scan</h4><p>Auto-brighten when viewing a card</p></div></div>
+          <button class="toggle-switch on" id="brightness-toggle"></button>
         </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
-      <div class="settings-item" onclick="pushToCloud()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">⬆️</div>
-          <div class="settings-item-text">
-            <h4>Push now</h4>
-            <p>Upload this device snapshot</p>
-          </div>
+      <div class="settings-section">
+        <h3>Data</h3>
+        <div class="settings-item" onclick="exportCards()">
+          <div class="settings-item-left"><div class="settings-item-icon">📤</div><div class="settings-item-text"><h4>Export cards</h4><p>Save as JSON backup</p></div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
-      <div class="settings-item" onclick="pullFromCloud()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">⬇️</div>
-          <div class="settings-item-text">
-            <h4>Pull now</h4>
-            <p>Download latest cloud snapshot</p>
-          </div>
+        <div class="settings-item" onclick="document.getElementById('import-input').click()">
+          <div class="settings-item-left"><div class="settings-item-icon">📥</div><div class="settings-item-text"><h4>Import cards</h4><p>Restore from JSON backup</p></div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
-      <div class="settings-item" onclick="toggleAutoSync()">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">🔄</div>
-          <div class="settings-item-text">
-            <h4>Auto sync on changes</h4>
-            <p>Push after local edits</p>
-          </div>
+        <input type="file" id="import-input" accept=".json" style="display:none" onchange="importCards(event)" />
+        <div class="settings-item" onclick="manualSync()">
+          <div class="settings-item-left"><div class="settings-item-icon">☁️</div><div class="settings-item-text"><h4>Sync now</h4><p>Force sync with cloud</p></div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7070a0" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
-        <button class="toggle-switch" id="autosync-toggle"></button>
       </div>
-    </div>
-    <div class="settings-section">
-      <h3>About</h3>
-      <div class="settings-item" style="cursor:default">
-        <div class="settings-item-left">
-          <div class="settings-item-icon">💳</div>
-          <div class="settings-item-text">
-            <h4>Cardex</h4>
-            <p>v1.0 — Your offline loyalty wallet</p>
-          </div>
+      <div class="settings-section">
+        <h3>About</h3>
+        <div class="settings-item" style="cursor:default">
+          <div class="settings-item-left"><div class="settings-item-icon">💳</div><div class="settings-item-text"><h4>Cardex</h4><p>v2.0 — Passkey + Cloud sync</p></div></div>
         </div>
       </div>
     </div>
+
+    <button class="fab" onclick="openAddSheet()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+
+    <nav class="bottom-nav">
+      <div class="nav-tab active" id="nav-home" onclick="showPage('home')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Cards
+      </div>
+      <div class="nav-tab" id="nav-settings" onclick="showPage('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </div>
+    </nav>
   </div>
-
-  <!-- FAB -->
-  <button class="fab" onclick="openAddSheet()" title="Add card">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-  </button>
-
-  <!-- Bottom nav -->
-  <nav class="bottom-nav">
-    <div class="nav-tab active" id="nav-home" onclick="showPage('home')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      Cards
-    </div>
-    <div class="nav-tab" id="nav-settings" onclick="showPage('settings')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Settings
-    </div>
-  </nav>
 </div>
 
-<!-- ===== CARD DETAIL SHEET ===== -->
+<!-- DETAIL SHEET -->
 <div class="overlay" id="detail-overlay" onclick="closeOnBackdrop(event,'detail-overlay')">
-  <div class="sheet" id="detail-sheet">
+  <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
       <span class="sheet-title">Card</span>
-      <button class="close-btn" onclick="closeSheet('detail-overlay')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+      <button class="close-btn" onclick="closeSheet('detail-overlay')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-
     <div class="card-detail-header" id="detail-card-header">
-      <div>
-        <div class="card-detail-icon" id="detail-icon"></div>
-        <div class="card-detail-name" id="detail-name"></div>
-        <div class="card-detail-sub"  id="detail-sub"></div>
-      </div>
+      <div><div class="card-detail-icon" id="detail-icon"></div><div class="card-detail-name" id="detail-name"></div><div class="card-detail-sub" id="detail-sub"></div></div>
       <div class="card-detail-points" id="detail-points"></div>
     </div>
-
     <div class="brightness-hint" id="brightness-hint">☀️ Screen brightness raised for scanning</div>
-
-    <div class="barcode-section" id="barcode-section">
+    <div class="barcode-section">
       <div class="barcode-type-toggle">
         <button class="toggle-btn active" id="btn-barcode" onclick="switchBarcodeView('barcode')">Barcode</button>
         <button class="toggle-btn"        id="btn-qr"      onclick="switchBarcodeView('qr')">QR Code</button>
       </div>
-      <div id="barcode-container">
-        <svg id="barcode-svg"></svg>
-      </div>
+      <div id="barcode-container"><svg id="barcode-svg"></svg></div>
       <div id="qr-container" style="display:none"></div>
       <div class="barcode-number" id="detail-barcode-number"></div>
     </div>
-
     <div class="actions-row">
       <button class="btn btn-secondary" onclick="openEditSheet()">✏️ Edit</button>
       <button class="btn btn-danger"    onclick="deleteCurrentCard()">🗑️ Delete</button>
@@ -733,29 +355,17 @@
   </div>
 </div>
 
-<!-- ===== ADD / EDIT CARD SHEET ===== -->
+<!-- ADD/EDIT SHEET -->
 <div class="overlay" id="add-overlay" onclick="closeOnBackdrop(event,'add-overlay')">
-  <div class="sheet" id="add-sheet">
+  <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
       <span class="sheet-title" id="add-sheet-title">Add Card</span>
-      <button class="close-btn" onclick="closeSheet('add-overlay')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+      <button class="close-btn" onclick="closeSheet('add-overlay')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-
     <div class="form-body">
-
-      <div class="field">
-        <label>Store name *</label>
-        <input type="text" id="f-name" placeholder="e.g. Tesco, Boots, Starbucks…" oninput="updateFormPreview()" />
-      </div>
-
-      <div class="field">
-        <label>Card / Barcode number *</label>
-        <input type="text" id="f-number" placeholder="Scan or type your card number" oninput="updateFormPreview()" />
-      </div>
-
+      <div class="field"><label>Store name *</label><input type="text" id="f-name" placeholder="e.g. Tesco, Boots, Starbucks…" oninput="updateFormPreview()" /></div>
+      <div class="field"><label>Card / Barcode number *</label><input type="text" id="f-number" placeholder="Scan or type your card number" oninput="updateFormPreview()" /></div>
       <div class="field">
         <label>Barcode format</label>
         <select id="f-format" onchange="updateFormPreview()">
@@ -768,14 +378,7 @@
           <option value="QR">QR Code only</option>
         </select>
       </div>
-
-      <div class="field">
-        <label>Barcode preview</label>
-        <div class="barcode-preview-wrap" id="form-barcode-preview">
-          <p class="preview-error">Enter a card number above</p>
-        </div>
-      </div>
-
+      <div class="field"><label>Barcode preview</label><div class="barcode-preview-wrap" id="form-barcode-preview"><p class="preview-error">Enter a card number above</p></div></div>
       <div class="field">
         <label>Category</label>
         <select id="f-category">
@@ -788,672 +391,453 @@
           <option value="other">📦 Other</option>
         </select>
       </div>
-
-      <div class="field">
-        <label>Icon / Emoji</label>
-        <div class="emoji-picker-row" id="emoji-picker">
-          <!-- populated by JS -->
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Card colour</label>
-        <div class="color-picker-row" id="color-picker">
-          <!-- populated by JS -->
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Notes (points, member ID, etc.)</label>
-        <input type="text" id="f-notes" placeholder="Optional…" />
-      </div>
-
+      <div class="field"><label>Icon / Emoji</label><div class="emoji-picker-row" id="emoji-picker"></div></div>
+      <div class="field"><label>Card colour</label><div class="color-picker-row" id="color-picker"></div></div>
+      <div class="field"><label>Notes (points, member ID…)</label><input type="text" id="f-notes" placeholder="Optional…" /></div>
     </div>
-
-    <div style="padding: 20px 20px 0">
+    <div style="padding:20px 20px 0">
       <button class="btn btn-primary" style="width:100%" onclick="saveCard()">Save Card</button>
     </div>
   </div>
 </div>
 
-<!-- Toast -->
+<!-- ACCOUNT SHEET -->
+<div class="overlay" id="account-overlay" onclick="closeOnBackdrop(event,'account-overlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="account-info">
+      <div class="account-avatar" id="account-avatar">?</div>
+      <div><div class="account-name" id="account-name">…</div><div class="account-sub">Passkey account</div></div>
+    </div>
+    <div class="account-menu">
+      <div class="account-menu-item" onclick="manualSync();closeSheet('account-overlay')"><span class="item-icon">☁️</span><span>Sync now</span></div>
+      <div class="account-menu-item" onclick="signOut()" style="color:var(--danger)"><span class="item-icon">🚪</span><span>Sign out</span></div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
-// ============================================================
-//  DATA LAYER — localStorage
-// ============================================================
-const STORE_KEY = 'cardex_v1';
-const SYNC_KEY = 'cardex_sync_v1';
+// ── CONFIG ────────────────────────────────────────────────────
+// ⚠️  Replace with your deployed Worker URL
+const API = 'https://cardex-api.tjm.sk';
 
-function loadCards() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
-  catch { return []; }
-}
-function saveCards(cards, opts = {}) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(cards));
-  if (opts.remote) return;
-  syncState.localUpdatedAt = new Date().toISOString();
-  saveSyncState();
-  scheduleAutoSync();
-}
+// ── State ─────────────────────────────────────────────────────
+const STORE_KEY   = 'cardex_v2_cards';
+const SESSION_KEY = 'cardex_v2_session';
+const SETTINGS_KEY= 'cardex_v2_settings';
 
-function makeDeviceId() {
-  return 'dev-' + Math.random().toString(36).slice(2, 10);
-}
-
-let syncState = {
-  endpoint: '',
-  userId: '',
-  token: '',
-  deviceId: makeDeviceId(),
-  autoSync: false,
-  localUpdatedAt: null,
-  cloudUpdatedAt: null,
-};
-
-try { Object.assign(syncState, JSON.parse(localStorage.getItem(SYNC_KEY)) || {}); } catch {}
-if (!syncState.deviceId) syncState.deviceId = makeDeviceId();
-
-function saveSyncState() {
-  localStorage.setItem(SYNC_KEY, JSON.stringify(syncState));
-  renderSyncState();
-}
-
-function renderSyncState() {
-  const status = document.getElementById('sync-status');
-  const toggle = document.getElementById('autosync-toggle');
-  if (status) status.textContent = syncState.endpoint && syncState.userId ? `Ready (${syncState.userId})` : 'Not configured';
-  if (toggle) toggle.classList.toggle('on', !!syncState.autoSync);
-}
-
-let cards = loadCards();
+let cards         = [];
+let session       = null;   // { token, userId, username }
 let currentCardId = null;
 let currentFilter = 'all';
-let editMode = false;
+let editMode      = false;
+let barcodeView   = 'barcode';
+let settings      = { brightness: true };
+try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY))); } catch {}
 
-// ============================================================
-//  COLORS & EMOJIS
-// ============================================================
-const COLORS = [
-  { name:'Violet',  val:'linear-gradient(135deg,#7c6dfa,#a855f7)' },
-  { name:'Rose',    val:'linear-gradient(135deg,#fa6d9a,#f43f5e)' },
-  { name:'Emerald', val:'linear-gradient(135deg,#34d399,#059669)' },
-  { name:'Sky',     val:'linear-gradient(135deg,#38bdf8,#3b82f6)' },
-  { name:'Amber',   val:'linear-gradient(135deg,#fbbf24,#f97316)' },
-  { name:'Indigo',  val:'linear-gradient(135deg,#6366f1,#4f46e5)' },
-  { name:'Pink',    val:'linear-gradient(135deg,#f472b6,#ec4899)' },
-  { name:'Teal',    val:'linear-gradient(135deg,#2dd4bf,#14b8a6)' },
-  { name:'Slate',   val:'linear-gradient(135deg,#64748b,#475569)' },
-];
-
-const EMOJIS = ['🛒','💊','👗','☕','⛽','✈️','🍔','🎮','📦','🏥','💄','👟','🏠','🎵','🐾','💪','🍕','🌟'];
-
-let selectedColor = COLORS[0].val;
-let selectedEmoji = EMOJIS[0];
-
-function buildEmojiPicker() {
-  const el = document.getElementById('emoji-picker');
-  el.innerHTML = EMOJIS.map(e => `
-    <div class="emoji-opt ${e===selectedEmoji?'selected':''}" onclick="pickEmoji(this,'${e}')">${e}</div>
-  `).join('');
+// ── Sync UI ───────────────────────────────────────────────────
+function setSyncState(cls, label) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  if (!dot) return;
+  dot.className  = 'sync-dot ' + cls;
+  lbl.textContent = label;
 }
 
-function buildColorPicker() {
-  const el = document.getElementById('color-picker');
-  el.innerHTML = COLORS.map(c => `
-    <div class="color-swatch ${c.val===selectedColor?'selected':''}"
-      style="background:${c.val}"
-      onclick="pickColor(this,'${c.val.replace(/'/g,'\\\'')}')"
-    ></div>
-  `).join('');
+// ── API helper ────────────────────────────────────────────────
+async function api(path, method='GET', body) {
+  const h = { 'Content-Type': 'application/json' };
+  if (session?.token) h['Authorization'] = `Bearer ${session.token}`;
+  const r = await fetch(API + path, { method, headers: h, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
 }
 
-function pickEmoji(el, val) {
-  selectedEmoji = val;
-  document.querySelectorAll('.emoji-opt').forEach(e => e.classList.remove('selected'));
-  el.classList.add('selected');
+// ── WebAuthn helpers ──────────────────────────────────────────
+function ab2b64url(buf) {
+  const b = new Uint8Array(buf instanceof ArrayBuffer ? buf : buf.buffer ?? buf);
+  let s = '';
+  for (const x of b) s += String.fromCharCode(x);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
 }
-function pickColor(el, val) {
-  selectedColor = val;
-  document.querySelectorAll('.color-swatch').forEach(e => e.classList.remove('selected'));
-  el.classList.add('selected');
+function b64urlDecode(s) {
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  while (s.length%4) s+='=';
+  const bin = atob(s);
+  const buf = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+  return buf.buffer;
 }
 
-// ============================================================
-//  BARCODE RENDERING
-// ============================================================
-function renderBarcode(svgId, number, format) {
-  const el = document.getElementById(svgId);
-  if (!el || !number) return;
+// ── REGISTER ──────────────────────────────────────────────────
+async function registerPasskey() {
+  const username = document.getElementById('reg-username').value.trim();
+  if (!username || username.length < 2) { showAuthError('register','Username must be at least 2 characters'); return; }
+  setAuthLoading('register', true);
   try {
-    JsBarcode(el, number, {
-      format: format === 'QR' ? 'CODE128' : format,
-      lineColor: '#111',
-      width: 2,
-      height: 80,
-      displayValue: false,
-      margin: 4,
+    const { options, error } = await api('/auth/register/begin','POST',{ username });
+    if (error) { showAuthError('register', error); return; }
+
+    const cred = await navigator.credentials.create({ publicKey: {
+      ...options,
+      challenge: b64urlDecode(options.challenge),
+      user: { ...options.user, id: b64urlDecode(options.user.id) },
+    }});
+
+    const result = await api('/auth/register/finish','POST',{
+      challengeToken: options.challenge,
+      credential: {
+        id: cred.id, type: cred.type,
+        response: {
+          clientDataJSON:    ab2b64url(cred.response.clientDataJSON),
+          attestationObject: ab2b64url(cred.response.attestationObject),
+          transports:        cred.response.getTransports?.() || [],
+        }
+      }
     });
-    return true;
+    if (result.error) { showAuthError('register', result.error); return; }
+    await onAuthSuccess(result);
   } catch(e) {
-    return false;
-  }
+    showAuthError('register', e.name === 'NotAllowedError' ? 'Biometric prompt cancelled.' : e.message);
+  } finally { setAuthLoading('register', false); }
 }
 
-function renderQR(containerId, number) {
-  const el = document.getElementById(containerId);
-  el.innerHTML = '';
-  if (!number) return;
+// ── LOGIN ─────────────────────────────────────────────────────
+async function loginWithPasskey() {
+  setAuthLoading('login', true);
   try {
-    new QRCode(el, {
-      text: number,
-      width: 180,
-      height: 180,
-      colorDark: '#111',
-      colorLight: '#fff',
-      correctLevel: QRCode.CorrectLevel.M,
+    const { options, error } = await api('/auth/login/begin','POST',{});
+    if (error) { showAuthError('login', error); return; }
+
+    const cred = await navigator.credentials.get({ publicKey: {
+      ...options,
+      challenge: b64urlDecode(options.challenge),
+      allowCredentials: [],
+    }});
+
+    const result = await api('/auth/login/finish','POST',{
+      challengeToken: options.challenge,
+      credential: {
+        id: cred.id, type: cred.type,
+        response: {
+          clientDataJSON:    ab2b64url(cred.response.clientDataJSON),
+          authenticatorData: ab2b64url(cred.response.authenticatorData),
+          signature:         ab2b64url(cred.response.signature),
+          userHandle:        cred.response.userHandle ? ab2b64url(cred.response.userHandle) : null,
+        }
+      }
     });
-  } catch(e) {}
+    if (result.error) { showAuthError('login', result.error); return; }
+    await onAuthSuccess(result);
+  } catch(e) {
+    showAuthError('login', e.name === 'NotAllowedError' ? 'Biometric prompt cancelled.' : e.message);
+  } finally { setAuthLoading('login', false); }
 }
 
-// ============================================================
-//  FORM
-// ============================================================
-function updateFormPreview() {
-  const number = document.getElementById('f-number').value.trim();
-  const format = document.getElementById('f-format').value;
-  const wrap = document.getElementById('form-barcode-preview');
+async function onAuthSuccess({ token, userId, username }) {
+  session = { token, userId, username };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  const raw = localStorage.getItem(STORE_KEY);
+  cards = raw ? JSON.parse(raw) : [];
+  showMainApp();
+  await syncOnOpen();
+}
 
-  if (!number) {
-    wrap.innerHTML = '<p class="preview-error">Enter a card number above</p>';
-    return;
-  }
+function signOut() {
+  if (!confirm('Sign out?')) return;
+  session = null;
+  localStorage.removeItem(SESSION_KEY);
+  closeSheet('account-overlay');
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  showLogin();
+}
 
-  if (format === 'QR') {
-    wrap.innerHTML = '<div id="form-qr-preview"></div>';
-    renderQR('form-qr-preview', number);
-    return;
-  }
-
-  wrap.innerHTML = '<svg id="form-barcode-svg"></svg>';
-  const ok = renderBarcode('form-barcode-svg', number, format);
-  if (!ok) {
-    wrap.innerHTML = `<p class="preview-error">⚠️ Invalid number for ${format} format.<br>Try CODE 128 or QR Code.</p>`;
+// ── SYNC ──────────────────────────────────────────────────────
+async function syncOnOpen() {
+  if (!session) return;
+  setSyncState('syncing','Syncing…');
+  try {
+    const { cards: remote, error } = await api('/cards');
+    if (error) throw new Error(error);
+    cards = mergeCards(cards, remote || []);
+    saveLocal(); renderCards();
+    await pushCards();
+    setSyncState('synced','Synced');
+  } catch {
+    setSyncState('error','Offline');
+    showToast('Offline — using local data');
   }
 }
 
-// ============================================================
-//  SAVE CARD
-// ============================================================
-function saveCard() {
+async function pushCards() {
+  if (!session) return;
+  setSyncState('syncing','Saving…');
+  try {
+    const { error } = await api('/cards','POST',{ cards });
+    if (error) throw new Error(error);
+    setSyncState('synced','Synced');
+  } catch { setSyncState('error','Sync failed'); }
+}
+
+async function manualSync() { await syncOnOpen(); showToast('Sync complete ✓'); }
+
+function mergeCards(local, remote) {
+  const map = new Map();
+  for (const c of remote) map.set(c.id, c);
+  for (const c of local)  if (!map.has(c.id)) map.set(c.id, c);
+  return Array.from(map.values());
+}
+
+function saveLocal() { localStorage.setItem(STORE_KEY, JSON.stringify(cards)); }
+
+// ── SESSION RESTORE ───────────────────────────────────────────
+function restoreSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SESSION_KEY));
+    if (s?.token) {
+      session = s;
+      const raw = localStorage.getItem(STORE_KEY);
+      cards = raw ? JSON.parse(raw) : [];
+      showMainApp();
+      syncOnOpen();
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+// ── UI HELPERS ────────────────────────────────────────────────
+function showMainApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  const main = document.getElementById('main-app');
+  main.style.display = 'flex';
+  const ini = (session.username||'?').slice(0,2).toUpperCase();
+  document.getElementById('user-avatar-mini').textContent = ini;
+  document.getElementById('user-name-mini').textContent   = session.username;
+  document.getElementById('account-avatar').textContent   = ini;
+  document.getElementById('account-name').textContent     = session.username;
+  renderCards();
+}
+function showLogin()    { document.getElementById('auth-login-panel').style.display='flex';   document.getElementById('auth-register-panel').style.display='none'; }
+function showRegister() { document.getElementById('auth-login-panel').style.display='none';   document.getElementById('auth-register-panel').style.display='flex'; }
+function setAuthLoading(panel, on) {
+  const btn = document.getElementById(panel==='login'?'login-btn':'register-btn');
+  btn.disabled = on;
+  btn.textContent = on ? 'Please wait…' : (panel==='login' ? 'Sign in with Passkey' : 'Register Passkey');
+}
+function showAuthError(panel, msg) {
+  const el = document.getElementById(panel+'-error');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 5000);
+}
+function openAccountSheet() { openSheet('account-overlay'); }
+
+// ── CARDS CRUD ────────────────────────────────────────────────
+async function saveCard() {
   const name   = document.getElementById('f-name').value.trim();
   const number = document.getElementById('f-number').value.trim();
   const format = document.getElementById('f-format').value;
   const cat    = document.getElementById('f-category').value;
   const notes  = document.getElementById('f-notes').value.trim();
-
   if (!name)   { showToast('Please enter a store name'); return; }
   if (!number) { showToast('Please enter a card number'); return; }
-
+  const now = new Date().toISOString();
   if (editMode && currentCardId) {
-    cards = cards.map(c => c.id === currentCardId
-      ? { ...c, name, number, format, category: cat, notes, color: selectedColor, emoji: selectedEmoji }
-      : c
-    );
+    cards = cards.map(c => c.id===currentCardId ? {...c,name,number,format,category:cat,notes,color:selectedColor,emoji:selectedEmoji,updatedAt:now} : c);
     showToast('Card updated!');
   } else {
-    cards.push({
-      id: Date.now().toString(),
-      name, number, format,
-      category: cat,
-      notes,
-      color: selectedColor,
-      emoji: selectedEmoji,
-      createdAt: new Date().toISOString(),
-    });
+    cards.push({id:crypto.randomUUID(),name,number,format,category:cat,notes,color:selectedColor,emoji:selectedEmoji,createdAt:now,updatedAt:now});
     showToast('Card added! 🎉');
   }
-
-  saveCards(cards);
-  closeSheet('add-overlay');
-  renderCards();
+  saveLocal(); closeSheet('add-overlay'); renderCards();
+  await pushCards();
 }
 
-// ============================================================
-//  RENDER CARD GRID
-// ============================================================
+async function deleteCurrentCard() {
+  if (!currentCardId || !confirm('Delete this card?')) return;
+  cards = cards.filter(c => c.id !== currentCardId);
+  saveLocal(); closeSheet('detail-overlay'); renderCards();
+  showToast('Card deleted');
+  await pushCards();
+}
+
+// ── RENDER ────────────────────────────────────────────────────
 function renderCards() {
   const grid  = document.getElementById('card-grid');
-  const query = (document.getElementById('search-input')?.value || '').toLowerCase();
   const count = document.getElementById('cards-count');
-
-  let filtered = cards;
-  if (currentFilter !== 'all') filtered = filtered.filter(c => c.category === currentFilter);
-  if (query) filtered = filtered.filter(c => c.name.toLowerCase().includes(query) || c.number.toLowerCase().includes(query));
-
-  count.textContent = `${filtered.length} card${filtered.length !== 1 ? 's' : ''}`;
-
-  if (!filtered.length) {
-    grid.innerHTML = `
-      <div style="grid-column:1/-1">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="2" y="5" width="20" height="14" rx="3"/>
-            <line x1="2" y1="10" x2="22" y2="10"/>
-          </svg>
-          <h3>${cards.length === 0 ? 'No cards yet' : 'No matches'}</h3>
-          <p>${cards.length === 0
-            ? 'Tap the + button to add your first loyalty card.'
-            : 'Try a different search or category.'}</p>
-        </div>
-      </div>`;
+  if (!grid) return;
+  const q = (document.getElementById('search-input')?.value||'').toLowerCase();
+  let f = cards;
+  if (currentFilter!=='all') f=f.filter(c=>c.category===currentFilter);
+  if (q) f=f.filter(c=>c.name.toLowerCase().includes(q)||c.number.toLowerCase().includes(q));
+  count.textContent = `${f.length} card${f.length!==1?'s':''}`;
+  if (!f.length) {
+    grid.innerHTML=`<div style="grid-column:1/-1"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="3"/><line x1="2" y1="10" x2="22" y2="10"/></svg><h3>${cards.length===0?'No cards yet':'No matches'}</h3><p>${cards.length===0?'Tap + to add your first card.':'Try a different search.'}</p></div></div>`;
     return;
   }
-
-  grid.innerHTML = filtered.map(c => `
+  grid.innerHTML = f.map(c=>`
     <div class="card-tile" style="background:${c.color}" onclick="openDetail('${c.id}')">
-      <div>
-        <div class="card-tile-icon">${c.emoji}</div>
-        <div class="card-tile-name">${escHtml(c.name)}</div>
-        <div class="card-tile-number">${escHtml(c.number)}</div>
-      </div>
-      ${c.notes ? `<div class="card-tile-points">${escHtml(c.notes)}</div>` : ''}
-    </div>
-  `).join('');
+      <div><div class="card-tile-icon">${c.emoji}</div><div class="card-tile-name">${esc(c.name)}</div><div class="card-tile-number">${esc(c.number)}</div></div>
+      ${c.notes?`<div class="card-tile-points">${esc(c.notes)}</div>`:''}
+    </div>`).join('');
 }
 
-// ============================================================
-//  DETAIL SHEET
-// ============================================================
-let barcodeView = 'barcode';
-
+// ── DETAIL ────────────────────────────────────────────────────
 function openDetail(id) {
-  const card = cards.find(c => c.id === id);
-  if (!card) return;
-  currentCardId = id;
-  barcodeView = card.format === 'QR' ? 'qr' : 'barcode';
-
-  document.getElementById('detail-icon').textContent  = card.emoji;
-  document.getElementById('detail-name').textContent  = card.name;
-  document.getElementById('detail-sub').textContent   = card.category.charAt(0).toUpperCase() + card.category.slice(1);
-  document.getElementById('detail-points').textContent = card.notes || '';
-  document.getElementById('detail-barcode-number').textContent = card.number;
-  document.getElementById('detail-card-header').style.background = card.color;
-
-  // Brightness hint
-  const bh = document.getElementById('brightness-hint');
-  bh.style.display = settings.brightness ? 'block' : 'none';
-
+  const c = cards.find(x=>x.id===id); if (!c) return;
+  currentCardId=id; barcodeView=c.format==='QR'?'qr':'barcode';
+  document.getElementById('detail-icon').textContent    = c.emoji;
+  document.getElementById('detail-name').textContent    = c.name;
+  document.getElementById('detail-sub').textContent     = c.category.charAt(0).toUpperCase()+c.category.slice(1);
+  document.getElementById('detail-points').textContent  = c.notes||'';
+  document.getElementById('detail-barcode-number').textContent = c.number;
+  document.getElementById('detail-card-header').style.background = c.color;
+  document.getElementById('brightness-hint').style.display = settings.brightness?'block':'none';
   openSheet('detail-overlay');
-  setTimeout(() => {
-    renderDetailBarcode(card);
-  }, 50);
-
-  // Try to boost brightness (limited by browser)
-  if (settings.brightness && navigator.wakeLock) {
-    navigator.wakeLock.request('screen').catch(() => {});
-  }
+  setTimeout(()=>renderDetailBarcode(c),50);
+  if (settings.brightness && navigator.wakeLock) navigator.wakeLock.request('screen').catch(()=>{});
 }
-
-function renderDetailBarcode(card) {
-  if (barcodeView === 'qr' || card.format === 'QR') {
-    document.getElementById('barcode-container').style.display = 'none';
-    document.getElementById('qr-container').style.display = 'block';
+function renderDetailBarcode(c) {
+  if (barcodeView==='qr'||c.format==='QR') {
+    document.getElementById('barcode-container').style.display='none';
+    document.getElementById('qr-container').style.display='block';
     document.getElementById('btn-barcode').classList.remove('active');
     document.getElementById('btn-qr').classList.add('active');
-    renderQR('qr-container', card.number);
+    renderQR('qr-container',c.number);
   } else {
-    document.getElementById('barcode-container').style.display = 'block';
-    document.getElementById('qr-container').style.display = 'none';
+    document.getElementById('barcode-container').style.display='block';
+    document.getElementById('qr-container').style.display='none';
     document.getElementById('btn-barcode').classList.add('active');
     document.getElementById('btn-qr').classList.remove('active');
-    document.getElementById('barcode-svg').innerHTML = '';
-    const ok = renderBarcode('barcode-svg', card.number, card.format);
-    if (!ok) {
-      document.getElementById('barcode-container').innerHTML =
-        '<p style="color:#999;font-size:13px;text-align:center;padding:20px 0">Could not render barcode.<br>Switch to QR Code view.</p>';
-    }
+    document.getElementById('barcode-svg').innerHTML='';
+    if (!renderBarcode('barcode-svg',c.number,c.format))
+      document.getElementById('barcode-container').innerHTML='<p style="color:#999;font-size:13px;text-align:center;padding:20px">Could not render — switch to QR.</p>';
   }
 }
-
-function switchBarcodeView(type) {
-  barcodeView = type;
-  const card = cards.find(c => c.id === currentCardId);
-  if (card) renderDetailBarcode(card);
+function switchBarcodeView(t) { barcodeView=t; const c=cards.find(x=>x.id===currentCardId); if(c) renderDetailBarcode(c); }
+function renderBarcode(id,num,fmt) {
+  try { JsBarcode(document.getElementById(id),num,{format:fmt==='QR'?'CODE128':fmt,lineColor:'#111',width:2,height:80,displayValue:false,margin:4}); return true; } catch{return false;}
+}
+function renderQR(id,num) {
+  const el=document.getElementById(id); el.innerHTML='';
+  try { new QRCode(el,{text:num,width:180,height:180,colorDark:'#111',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M}); } catch{}
 }
 
-// ============================================================
-//  EDIT
-// ============================================================
+// ── EDIT ──────────────────────────────────────────────────────
 function openEditSheet() {
-  const card = cards.find(c => c.id === currentCardId);
-  if (!card) return;
-  editMode = true;
-  closeSheet('detail-overlay');
-  setTimeout(() => openAddSheet(card), 200);
+  const c=cards.find(x=>x.id===currentCardId); if(!c) return;
+  editMode=true; closeSheet('detail-overlay');
+  setTimeout(()=>openAddSheet(c),200);
 }
 
-// ============================================================
-//  DELETE
-// ============================================================
-function deleteCurrentCard() {
-  if (!currentCardId) return;
-  if (!confirm('Delete this card? This cannot be undone.')) return;
-  cards = cards.filter(c => c.id !== currentCardId);
-  saveCards(cards);
-  closeSheet('detail-overlay');
-  renderCards();
-  showToast('Card deleted');
+// ── ADD FORM ──────────────────────────────────────────────────
+const COLORS=[
+  {val:'linear-gradient(135deg,#7c6dfa,#a855f7)'},
+  {val:'linear-gradient(135deg,#fa6d9a,#f43f5e)'},
+  {val:'linear-gradient(135deg,#34d399,#059669)'},
+  {val:'linear-gradient(135deg,#38bdf8,#3b82f6)'},
+  {val:'linear-gradient(135deg,#fbbf24,#f97316)'},
+  {val:'linear-gradient(135deg,#6366f1,#4f46e5)'},
+  {val:'linear-gradient(135deg,#f472b6,#ec4899)'},
+  {val:'linear-gradient(135deg,#2dd4bf,#14b8a6)'},
+  {val:'linear-gradient(135deg,#64748b,#475569)'},
+];
+const EMOJIS=['🛒','💊','👗','☕','⛽','✈️','🍔','🎮','📦','🏥','💄','👟','🏠','🎵','🐾','💪','🍕','🌟'];
+let selectedColor=COLORS[0].val, selectedEmoji=EMOJIS[0];
+
+function buildEmojiPicker() { document.getElementById('emoji-picker').innerHTML=EMOJIS.map(e=>`<div class="emoji-opt ${e===selectedEmoji?'selected':''}" onclick="pickEmoji(this,'${e}')">${e}</div>`).join(''); }
+function buildColorPicker() { document.getElementById('color-picker').innerHTML=COLORS.map(c=>`<div class="color-swatch ${c.val===selectedColor?'selected':''}" style="background:${c.val}" onclick="pickColor(this,${JSON.stringify(c.val)})"></div>`).join(''); }
+function pickEmoji(el,v){selectedEmoji=v;document.querySelectorAll('.emoji-opt').forEach(e=>e.classList.remove('selected'));el.classList.add('selected');}
+function pickColor(el,v){selectedColor=v;document.querySelectorAll('.color-swatch').forEach(e=>e.classList.remove('selected'));el.classList.add('selected');}
+
+function updateFormPreview() {
+  const num=document.getElementById('f-number').value.trim(),fmt=document.getElementById('f-format').value,w=document.getElementById('form-barcode-preview');
+  if(!num){w.innerHTML='<p class="preview-error">Enter a card number above</p>';return;}
+  if(fmt==='QR'){w.innerHTML='<div id="form-qr-preview"></div>';renderQR('form-qr-preview',num);return;}
+  w.innerHTML='<svg id="form-barcode-svg"></svg>';
+  if(!renderBarcode('form-barcode-svg',num,fmt)) w.innerHTML=`<p class="preview-error">⚠️ Invalid for ${fmt}. Try CODE 128 or QR.</p>`;
 }
 
-// ============================================================
-//  ADD SHEET
-// ============================================================
-function openAddSheet(prefill) {
-  editMode = !!prefill;
-  document.getElementById('add-sheet-title').textContent = editMode ? 'Edit Card' : 'Add Card';
-
-  document.getElementById('f-name').value    = prefill?.name   || '';
-  document.getElementById('f-number').value  = prefill?.number || '';
-  document.getElementById('f-format').value  = prefill?.format || 'CODE128';
-  document.getElementById('f-category').value = prefill?.category || 'grocery';
-  document.getElementById('f-notes').value   = prefill?.notes  || '';
-
-  selectedColor = prefill?.color || COLORS[0].val;
-  selectedEmoji = prefill?.emoji || EMOJIS[0];
-
-  buildEmojiPicker();
-  buildColorPicker();
-
-  document.getElementById('form-barcode-preview').innerHTML = '<p class="preview-error">Enter a card number above</p>';
-  if (prefill?.number) setTimeout(updateFormPreview, 50);
-
+function openAddSheet(pre) {
+  editMode=!!pre;
+  document.getElementById('add-sheet-title').textContent=editMode?'Edit Card':'Add Card';
+  document.getElementById('f-name').value    =pre?.name    ||'';
+  document.getElementById('f-number').value  =pre?.number  ||'';
+  document.getElementById('f-format').value  =pre?.format  ||'CODE128';
+  document.getElementById('f-category').value=pre?.category||'grocery';
+  document.getElementById('f-notes').value   =pre?.notes   ||'';
+  selectedColor=pre?.color||COLORS[0].val; selectedEmoji=pre?.emoji||EMOJIS[0];
+  buildEmojiPicker(); buildColorPicker();
+  document.getElementById('form-barcode-preview').innerHTML='<p class="preview-error">Enter a card number above</p>';
+  if(pre?.number) setTimeout(updateFormPreview,50);
   openSheet('add-overlay');
 }
 
-// ============================================================
-//  SHEET HELPERS
-// ============================================================
-function openSheet(id) {
-  document.getElementById(id).classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeSheet(id) {
-  document.getElementById(id).classList.remove('open');
-  document.body.style.overflow = '';
-}
-function closeOnBackdrop(e, id) {
-  if (e.target.id === id) closeSheet(id);
-}
-
-// ============================================================
-//  NAV / PAGES
-// ============================================================
-function showPage(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('nav-' + page).classList.add('active');
-  document.querySelector('.fab').style.display = page === 'home' ? 'flex' : 'none';
-}
-
-// ============================================================
-//  SEARCH
-// ============================================================
-function openSearch() {
-  const bar = document.getElementById('search-bar');
-  const isVisible = bar.style.display !== 'none';
-  bar.style.display = isVisible ? 'none' : 'block';
-  if (!isVisible) document.getElementById('search-input').focus();
-  else { document.getElementById('search-input').value = ''; renderCards(); }
-}
-
-// ============================================================
-//  CATEGORY FILTER
-// ============================================================
-function filterByCategory(el, cat) {
-  currentFilter = cat;
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  renderCards();
-}
-
-// ============================================================
-//  SETTINGS
-// ============================================================
-const SETTINGS_KEY = 'cardex_settings';
-let settings = { brightness: true, dark: true };
-try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY))); } catch {}
-
-function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
-function toggleBrightness() {
-  settings.brightness = !settings.brightness;
-  document.getElementById('brightness-toggle').classList.toggle('on', settings.brightness);
-  saveSettings();
-}
-function toggleDarkMode() {
-  settings.dark = !settings.dark;
-  document.getElementById('dark-toggle').classList.toggle('on', settings.dark);
-  saveSettings();
-  showToast('Dark mode is always on in this version');
-}
-
-// ============================================================
-//  EXPORT / IMPORT
-// ============================================================
+// ── IMPORT / EXPORT ───────────────────────────────────────────
 function exportCards() {
-  const blob = new Blob([JSON.stringify(cards, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'cardex-backup.json';
-  a.click();
+  const b=new Blob([JSON.stringify(cards,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='cardex-backup.json';a.click();
   showToast('Cards exported!');
 }
-
-function importCards(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
+async function importCards(e) {
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=async ev=>{
     try {
-      const imported = JSON.parse(ev.target.result);
-      if (!Array.isArray(imported)) throw new Error('Invalid format');
-      const newCards = imported.filter(c => c.id && c.name && c.number);
-      const existing = new Set(cards.map(c => c.id));
-      let added = 0;
-      for (const c of newCards) {
-        if (!existing.has(c.id)) { cards.push(c); added++; }
-      }
-      saveCards(cards);
-      renderCards();
-      showToast(`Imported ${added} new card(s)`);
-    } catch {
-      showToast('Import failed: invalid file');
-    }
+      const imp=JSON.parse(ev.target.result); if(!Array.isArray(imp)) throw 0;
+      const ex=new Set(cards.map(c=>c.id)); let n=0;
+      for(const c of imp) if(c.id&&c.name&&c.number&&!ex.has(c.id)){cards.push(c);n++;}
+      saveLocal();renderCards();showToast(`Imported ${n} card(s)`);
+      await pushCards();
+    } catch { showToast('Import failed'); }
   };
-  reader.readAsText(file);
-  e.target.value = '';
+  r.readAsText(file); e.target.value='';
 }
 
-function clearAllCards() {
-  if (!confirm('This will delete ALL your cards. Are you sure?')) return;
-  cards = [];
-  saveCards(cards);
-  renderCards();
-  showToast('All cards cleared');
+// ── SETTINGS ─────────────────────────────────────────────────
+function toggleBrightness() {
+  settings.brightness=!settings.brightness;
+  document.getElementById('brightness-toggle').classList.toggle('on',settings.brightness);
+  localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings));
 }
 
-// ============================================================
-//  CLOUD SYNC (Cloudflare Worker-friendly)
-// ============================================================
-let autoSyncTimer;
-
-function requireSyncConfig() {
-  if (!syncState.endpoint || !syncState.userId || !syncState.token) {
-    showToast('Configure Cloud sync first');
-    return false;
-  }
-  return true;
+// ── SHEET / NAV ───────────────────────────────────────────────
+function openSheet(id)  { document.getElementById(id).classList.add('open');    document.body.style.overflow='hidden'; }
+function closeSheet(id) { document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+function closeOnBackdrop(e,id) { if(e.target.id===id) closeSheet(id); }
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('active'));
+  document.getElementById('nav-'+p).classList.add('active');
+  document.querySelector('.fab').style.display=p==='home'?'flex':'none';
 }
+function filterByCategory(el,cat) { currentFilter=cat; document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); renderCards(); }
+function openSearch() { const b=document.getElementById('search-bar'),v=b.style.display!=='none'; b.style.display=v?'none':'block'; if(!v)document.getElementById('search-input').focus(); else{document.getElementById('search-input').value='';renderCards();} }
 
-function scheduleAutoSync() {
-  if (!syncState.autoSync || !syncState.endpoint || !syncState.userId || !syncState.token) return;
-  clearTimeout(autoSyncTimer);
-  autoSyncTimer = setTimeout(() => pushToCloud(true), 800);
-}
+// ── TOAST ─────────────────────────────────────────────────────
+let _tt;
+function showToast(msg) { const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),2500); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function configureSync() {
-  const endpoint = prompt('Worker base URL (e.g. https://cardex-sync.example.workers.dev)', syncState.endpoint || '');
-  if (endpoint === null) return;
-  const userId = prompt('Vault / user id (shared across your devices)', syncState.userId || '');
-  if (userId === null) return;
-  const token = prompt('Sync token (must match Worker secret)', syncState.token || '');
-  if (token === null) return;
-
-  syncState.endpoint = endpoint.trim().replace(/\/$/, '');
-  syncState.userId = userId.trim();
-  syncState.token = token.trim();
-  saveSyncState();
-  showToast(syncState.endpoint && syncState.userId ? 'Cloud sync configured' : 'Cloud sync cleared');
-}
-
-function toggleAutoSync() {
-  syncState.autoSync = !syncState.autoSync;
-  saveSyncState();
-  showToast(syncState.autoSync ? 'Auto sync enabled' : 'Auto sync disabled');
-}
-
-async function pushToCloud(silent = false) {
-  if (!requireSyncConfig()) return;
-  try {
-    const payload = {
-      cards,
-      updatedAt: syncState.localUpdatedAt || new Date().toISOString(),
-      deviceId: syncState.deviceId,
-    };
-    const res = await fetch(`${syncState.endpoint}/sync/${encodeURIComponent(syncState.userId)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'x-sync-token': syncState.token },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    syncState.cloudUpdatedAt = data.updatedAt || payload.updatedAt;
-    saveSyncState();
-    if (!silent) showToast('Cloud sync complete');
-  } catch (err) {
-    console.error(err);
-    showToast('Cloud push failed');
-  }
-}
-
-async function pullFromCloud() {
-  if (!requireSyncConfig()) return;
-  try {
-    const res = await fetch(`${syncState.endpoint}/sync/${encodeURIComponent(syncState.userId)}`, {
-      headers: { 'x-sync-token': syncState.token },
-    });
-    if (res.status === 404) {
-      showToast('No cloud snapshot yet');
-      return;
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (!Array.isArray(data.cards)) throw new Error('Invalid payload');
-
-    const localTs = Date.parse(syncState.localUpdatedAt || 0);
-    const cloudTs = Date.parse(data.updatedAt || 0);
-    if (localTs > cloudTs && cards.length && !confirm('Local data looks newer than cloud. Overwrite local anyway?')) return;
-
-    cards = data.cards.filter(c => c && c.id && c.name && c.number);
-    saveCards(cards, { remote: true });
-    renderCards();
-
-    syncState.cloudUpdatedAt = data.updatedAt || null;
-    syncState.localUpdatedAt = data.updatedAt || new Date().toISOString();
-    saveSyncState();
-    showToast('Pulled from cloud');
-  } catch (err) {
-    console.error(err);
-    showToast('Cloud pull failed');
-  }
-}
-
-// ============================================================
-//  TOAST
-// ============================================================
-let toastTimer;
-function showToast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
-}
-
-// ============================================================
-//  HELPERS
-// ============================================================
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-// ============================================================
-//  PWA MANIFEST
-// ============================================================
-(function injectManifest() {
-  const manifest = {
-    name: 'Cardex — Loyalty Wallet',
-    short_name: 'Cardex',
-    start_url: '.',
-    display: 'standalone',
-    background_color: '#0a0a0f',
-    theme_color: '#0a0a0f',
-    description: 'Store and access your loyalty cards offline',
-    icons: [
-      { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="%230a0a0f"/><rect x="24" y="64" width="144" height="96" rx="16" fill="%237c6dfa"/><rect x="24" y="96" width="144" height="16" fill="%23111"/></svg>', sizes: '192x192', type: 'image/svg+xml' }
-    ]
-  };
-  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-  document.getElementById('manifest-link').href = URL.createObjectURL(blob);
+// ── PWA ───────────────────────────────────────────────────────
+(()=>{
+  const m={name:'Cardex — Loyalty Wallet',short_name:'Cardex',start_url:'.',display:'standalone',background_color:'#0a0a0f',theme_color:'#0a0a0f',icons:[{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="%230a0a0f"/><rect x="24" y="64" width="144" height="96" rx="16" fill="%237c6dfa"/><rect x="24" y="96" width="144" height="16" fill="%23111"/></svg>',sizes:'192x192',type:'image/svg+xml'}]};
+  document.getElementById('manifest-link').href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/manifest+json'}));
 })();
-
-// ============================================================
-//  SERVICE WORKER (inline for offline support)
-// ============================================================
-if ('serviceWorker' in navigator) {
-  const swCode = `
-    const CACHE = 'cardex-v1';
-    self.addEventListener('install', e => {
-      e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
-    });
-    self.addEventListener('fetch', e => {
-      e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
-    });
-  `;
-  const swBlob = new Blob([swCode], { type: 'application/javascript' });
-  navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
+if('serviceWorker' in navigator){
+  const sw=`const C='cardex-v2';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['.']))));self.addEventListener('fetch',e=>{if(e.request.url.includes('/auth/')||e.request.url.includes('/cards'))return;e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)));});`;
+  navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(()=>{});
 }
 
-// ============================================================
-//  INIT
-// ============================================================
+// ── INIT ──────────────────────────────────────────────────────
 buildEmojiPicker();
 buildColorPicker();
-renderCards();
-renderSyncState();
-
-// Seed demo cards if empty
-if (cards.length === 0) {
-  const demos = [
-    { id:'demo1', name:'Tesco Clubcard', number:'6342109823456', format:'EAN13', category:'grocery', emoji:'🛒', color:'linear-gradient(135deg,#34d399,#059669)', notes:'Gold member', createdAt: new Date().toISOString() },
-    { id:'demo2', name:'Boots Advantage', number:'9781234567890', format:'EAN13', category:'pharmacy', emoji:'💊', color:'linear-gradient(135deg,#38bdf8,#3b82f6)', notes:'2,450 pts', createdAt: new Date().toISOString() },
-    { id:'demo3', name:'Starbucks Rewards', number:'SBUX-8842-9912', format:'CODE128', category:'coffee', emoji:'☕', color:'linear-gradient(135deg,#fbbf24,#f97316)', notes:'Gold status', createdAt: new Date().toISOString() },
-  ];
-  cards = demos;
-  saveCards(cards);
-  renderCards();
+if (!restoreSession()) {
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('main-app').style.display='none';
 }
 </script>
 </body>
