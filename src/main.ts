@@ -120,9 +120,9 @@ function wire(): void {
   on('fab-add', 'click', () => openAddSheet());
 
   // Backdrop close
-  onId('detail-overlay',  'click', e => closeOnBackdrop(e as MouseEvent, 'detail-overlay'));
-  onId('add-overlay',     'click', e => closeOnBackdrop(e as MouseEvent, 'add-overlay'));
-  onId('account-overlay', 'click', e => closeOnBackdrop(e as MouseEvent, 'account-overlay'));
+  on('detail-overlay',  'click', e => closeOnBackdrop(e as MouseEvent, 'detail-overlay'));
+  on('add-overlay',     'click', e => closeOnBackdrop(e as MouseEvent, 'add-overlay'));
+  on('account-overlay', 'click', e => closeOnBackdrop(e as MouseEvent, 'account-overlay'));
 
   // Sheet close buttons
   document.querySelectorAll<HTMLElement>('[data-close-sheet]').forEach(btn => {
@@ -156,10 +156,6 @@ function wire(): void {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function on(id: string, event: string, handler: (e: Event) => void): void {
-  document.getElementById(id)?.addEventListener(event, handler);
-}
-
-function onId(id: string, event: string, handler: (e: Event) => void): void {
   document.getElementById(id)?.addEventListener(event, handler);
 }
 

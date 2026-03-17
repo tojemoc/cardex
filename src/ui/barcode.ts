@@ -1,9 +1,8 @@
-// JsBarcode and QRCode are loaded via CDN in index.html
-declare const JsBarcode: (el: SVGElement, value: string, opts: object) => void;
-declare const QRCode: new (el: HTMLElement, opts: object) => void;
+// JsBarcode and QRCode are declared in src/globals.d.ts
+// They are loaded via CDN <script> tags in index.html
 
 export function renderBarcode(svgId: string, number: string, format: string): boolean {
-  const el = document.getElementById(svgId) as SVGElement | null;
+  const el = document.getElementById(svgId);
   if (!el || !number) return false;
   try {
     JsBarcode(el, number, {
