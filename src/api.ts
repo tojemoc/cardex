@@ -1,4 +1,4 @@
-import type { Card, AuthResponse } from './types.js';
+import type { Card, Tombstone, AuthResponse } from './types.js';
 
 // ⚠️  Set this to your deployed Worker URL
 export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8787';
@@ -38,8 +38,8 @@ export const authMe             = ()                  => request<{ id: string; u
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
-export const fetchCards = ()              => request<{ cards: Card[]; error?: string }>('/cards', 'GET');
-export const pushCards  = (cards: Card[]) => request<{ ok: boolean; error?: string }>('/cards', 'POST', { cards });
+export const fetchCards = ()                                        => request<{ cards: Card[]; tombstones: Tombstone[]; error?: string }>('/cards', 'GET');
+export const pushCards  = (cards: Card[], tombstones: Tombstone[]) => request<{ ok: boolean; error?: string }>('/cards', 'POST', { cards, tombstones });
 
 // ── WebAuthn JSON types (not yet in all TS libs) ──────────────────────────────
 // These mirror the browser API shapes but as plain JSON (serialised over the wire).

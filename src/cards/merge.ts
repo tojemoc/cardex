@@ -1,25 +1,46 @@
-import type { Card } from '../types.js';
+import type { Card, Tombstone } from '../types.js';
 
 /**
- * Merge local and remote card arrays.
+ * Merge local and remote state, respecting tombstones from both sides.
  *
- * Strategy: remote wins for any card id that exists in both sets
- * (server is source of truth after a successful push). Local-only
- * cards are appended so offline additions are never lost.
- *
- * TODO for family-sync: compare updatedAt timestamps and keep newer,
- * or move to a proper CRDT (e.g. Last-Write-Wins element set).
+ * Rules:
+ *  1. Build a unified tombstone set from local + remote.
+ *  2. Any card whose id appears in the tombstone set is excluded,
+ *     regardless of which side has it — deletions always win.
+ *  3. For cards that survive: remote wins if it exists, otherwise keep local
+ *     (preserves offline additions).
+ *  4. Return the merged card list and the unified tombstone list separately
+ *     so the caller can push both back to the server.
  */
-export function mergeCards(local: Card[], remote: Card[]): Card[] {
-  const map = new Map<string, Card>();
+export interface MergeResult {
+  cards:      Card[];
+  tombstones: Tombstone[];
+}
 
-  // Remote first — authoritative for shared/synced cards
-  for (const card of remote) map.set(card.id, card);
-
-  // Local additions that don't exist remotely
-  for (const card of local) {
-    if (!map.has(card.id)) map.set(card.id, card);
+export function mergeCards(
+  localCards:       Card[],
+  remoteCards:      Card[],
+  localTombstones:  Tombstone[],
+  remoteTombstones: Tombstone[],
+): MergeResult {
+  // 1. Unify tombstones — keep the earliest deletedAt per id
+  const tombstoneMap = new Map<string, Tombstone>();
+  for (const t of [...remoteTombstones, ...localTombstones]) {
+    const existing = tombstoneMap.get(t.id);
+    if (!existing || t.deletedAt < existing.deletedAt) {
+      tombstoneMap.set(t.id, t);
+    }
   }
+  const tombstones = Array.from(tombstoneMap.values());
+  const deletedIds = tombstoneMap;
 
-  return Array.from(map.values());
+  // 2. Build card map — remote wins for existing ids, local fills in additions
+  const cardMap = new Map<string, Card>();
+  for (const card of remoteCards) cardMap.set(card.id, card);
+  for (const card of localCards)  if (!cardMap.has(card.id)) cardMap.set(card.id, card);
+
+  // 3. Exclude any card that has been tombstoned
+  const cards = Array.from(cardMap.values()).filter(c => !deletedIds.has(c.id));
+
+  return { cards, tombstones };
 }

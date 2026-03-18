@@ -1,4 +1,4 @@
-import type { Env, User, Credential, ChallengeData, MagicLinkData, Card } from '../types.js';
+import type { Env, User, Credential, ChallengeData, MagicLinkData, Card, Tombstone } from '../types.js';
 
 // ── User ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +57,14 @@ export const getCards = (env: Env, userId: string) =>
 
 export const putCards = (env: Env, userId: string, cards: Card[]) =>
   env.CARDEX_KV.put(`cards:${userId}`, JSON.stringify(cards));
+
+// ── Tombstones ────────────────────────────────────────────────────────────────
+
+export const getTombstones = (env: Env, userId: string) =>
+  env.CARDEX_KV.get<Tombstone[]>(`tombstones:${userId}`, 'json');
+
+export const putTombstones = (env: Env, userId: string, tombstones: Tombstone[]) =>
+  env.CARDEX_KV.put(`tombstones:${userId}`, JSON.stringify(tombstones));
 
 // ── User upsert (shared by passkey + magic link registration) ─────────────────
 

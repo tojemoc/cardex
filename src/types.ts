@@ -11,6 +11,12 @@ export interface Card {
   updatedAt: string;
 }
 
+/** Records a deleted card so other devices know not to resurrect it. */
+export interface Tombstone {
+  id:        string; // card id
+  deletedAt: string; // ISO timestamp
+}
+
 export interface Session {
   token:    string;
   userId:   string;

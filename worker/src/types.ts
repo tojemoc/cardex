@@ -41,6 +41,12 @@ export interface Card {
   updatedAt: string;
 }
 
+/** Records a deleted card so other devices know not to resurrect it. */
+export interface Tombstone {
+  id:        string;
+  deletedAt: string;
+}
+
 // ── Worker env bindings ───────────────────────────────────────────────────────
 
 export interface Env {
