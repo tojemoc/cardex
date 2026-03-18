@@ -116,6 +116,12 @@ function wire(): void {
   on('search-btn',   'click', () => toggleSearch());
   on('search-input', 'input', () => renderCards());
 
+  // Sync now button in settings
+  on('manual-sync-settings', 'click', async () => {
+    await syncOnOpen();
+    showToast('Sync complete ✓');
+  });
+
   // FAB + sheets
   on('fab-add', 'click', () => openAddSheet());
 
