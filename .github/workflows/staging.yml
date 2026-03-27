@@ -21,7 +21,7 @@ jobs:
 
       - name: Install worker deps
         working-directory: worker
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Type-check worker
         working-directory: worker
