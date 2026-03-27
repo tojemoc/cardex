@@ -10,7 +10,7 @@ on:
 
 jobs:
   deploy-worker-staging:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Deploy Worker (staging)
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
           command:          deploy --env staging
 
   deploy-frontend-staging:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Deploy Frontend (staging)
     needs: deploy-worker-staging
     steps:

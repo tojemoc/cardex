@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy-worker-production:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Deploy Worker (production)
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
           command:          deploy   # default env = production
 
   deploy-frontend-production:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Deploy Frontend (production)
     needs: deploy-worker-production
     steps:
