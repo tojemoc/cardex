@@ -118,7 +118,7 @@ npm run build
 wrangler pages deploy dist --project-name=your-project
 ```
 
-Or push to `master` — GitHub Actions (`deploy.yml`) handles both automatically.
+Or push to `main` — GitHub Actions (`deploy.yml`) handles both automatically.
 
 ### GitHub Actions secrets needed
 
