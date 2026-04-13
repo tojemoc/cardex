@@ -25,7 +25,7 @@ jobs:
 
       - name: Install worker deps
         working-directory: worker
-        run: npm install --legacy-peer-deps
+        run: npm ci
 
       - name: Type-check worker
         working-directory: worker
@@ -54,7 +54,7 @@ jobs:
           node-version: 20
 
       - name: Install frontend deps
-        run: npm install --legacy-peer-deps
+        run: npm ci --legacy-peer-deps
 
       - name: Type-check frontend
         run: npm run type-check
