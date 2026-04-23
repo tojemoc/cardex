@@ -67,6 +67,7 @@ jobs:
       - name: Deploy to Cloudflare Pages (production)
         uses: cloudflare/wrangler-action@v3
         with:
+          wranglerVersion: latest
           apiToken:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command:   pages deploy dist --project-name=vibecoded-stocard --branch=main
