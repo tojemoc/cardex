@@ -61,6 +61,7 @@ jobs:
       - name: Deploy to Cloudflare Pages (staging)
         uses: cloudflare/wrangler-action@v3
         with:
+          wranglerVersion: latest
           apiToken:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Deploys to the staging Pages project (separate from production)
