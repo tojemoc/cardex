@@ -47,7 +47,7 @@ export async function authMagicVerifyRequest(token: string): Promise<MagicVerify
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ token }),
     });
-    let data: AuthResponse & { error?: string } = { token: '', userId: '', username: '' };
+    let data: AuthResponse & { error?: string };
     try {
       data = (await res.json()) as AuthResponse & { error?: string };
     } catch {
