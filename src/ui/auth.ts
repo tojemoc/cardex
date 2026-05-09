@@ -1,6 +1,11 @@
 import { registerWithPasskey }          from '../auth/passkey.js';
 import { loginWithPasskey }             from '../auth/passkey.js';
-import { sendMagicLink, verifyMagicToken, consumeMagicTokenFromUrl } from '../auth/magic.js';
+import {
+  sendMagicLink,
+  verifyMagicTokenResilient,
+  peekMagicTokenFromUrl,
+  clearMagicTokenFromUrl,
+} from '../auth/magic.js';
 import { saveSession, clearSession }   from '../auth/session.js';
 import type { AuthResponse }           from '../types.js';
 
@@ -136,23 +141,25 @@ export async function handleMagicSend(): Promise<void> {
 // ── Magic link verify (called on page load if ?magic= present) ────────────────
 
 export async function handleMagicVerify(): Promise<AuthResponse | null> {
-  const token = consumeMagicTokenFromUrl();
+  const token = peekMagicTokenFromUrl();
   if (!token) return null;
 
   showVerifyingScreen();
   try {
-    const result = await verifyMagicToken(token);
-    if (result.error) {
+    const outcome = await verifyMagicTokenResilient(token);
+    if (outcome.kind === 'fail') {
       showAuthScreen();
       showPanel('magic');
-      showAuthError('magic',
-        result.error === 'Link expired or already used'
+      const msg =
+        outcome.error === 'Link expired or already used' || outcome.error === 'Link expired'
           ? 'This link has expired or was already used. Please request a new one.'
-          : result.error,
-      );
+          : outcome.error;
+      showAuthError('magic', msg);
+      if (outcome.clearUrl) clearMagicTokenFromUrl();
       return null;
     }
-    return result;
+    clearMagicTokenFromUrl();
+    return outcome.data;
   } catch {
     showAuthScreen();
     showPanel('magic');
