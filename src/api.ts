@@ -51,7 +51,9 @@ export async function authMagicVerifyRequest(token: string): Promise<MagicVerify
     try {
       data = (await res.json()) as AuthResponse & { error?: string };
     } catch {
-      return { status: 'fail', transient: res.status >= 500 || res.status === 0 };
+      const transient =
+        res.status >= 500 || res.status === 0 || res.status === 429 || res.status === 408;
+      return { status: 'fail', transient };
     }
     if (res.ok && data.token && data.userId) {
       return {
