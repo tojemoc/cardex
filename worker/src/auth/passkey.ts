@@ -1,9 +1,12 @@
-import type { Env }                     from '../types.js';
+import type { Env, PasskeyMeta, User }  from '../types.js';
 import { jsonResponse }                 from '../lib/http.js';
 import { generateRandomToken, base64urlDecode, bufferToBase64url, concat } from '../lib/encoding.js';
 import { parseAttestationObject, parseAuthenticatorData, verifyCoseSignature, sha256 } from '../lib/cose.js';
-import { getAndDeleteChallenge, putChallenge, getCredential, putCredential, getUser, upsertUserByEmail } from '../lib/kv.js';
-import { issueToken }                   from './jwt.js';
+import {
+  getAndDeleteChallenge, putChallenge, getCredential, putCredential, getUser, putUser,
+  upsertUserByEmail, deleteCredential,
+} from '../lib/kv.js';
+import { issueToken, verifyToken }      from './jwt.js';
 
 function getRpId(env: Env): string {
   return env.FRONTEND_RP_ID || 'vibecoded-stocard.pages.dev';
@@ -18,15 +21,70 @@ function verifyOrigin(origin: string, env: Env): boolean {
   return allowed.includes(origin);
 }
 
+async function recordPasskeyMeta(
+  env: Env,
+  userId: string,
+  credId: string,
+  transports: string[],
+): Promise<void> {
+  const user = await getUser(env, userId);
+  if (!user) return;
+  const meta: PasskeyMeta = { id: credId, createdAt: new Date().toISOString(), transports };
+  const list = [...(user.passkeys ?? [])];
+  const i    = list.findIndex((p) => p.id === credId);
+  if (i >= 0) list[i] = meta;
+  else list.push(meta);
+  await putUser(env, { ...user, passkeys: list });
+}
+
+/** Backfill index when an older credential logs in but was never listed on the user row. */
+async function ensurePasskeyMeta(
+  env: Env,
+  userId: string,
+  credId: string,
+  transports: string[],
+): Promise<void> {
+  const user = await getUser(env, userId);
+  if (!user) return;
+  if (user.passkeys?.some((p) => p.id === credId)) return;
+  const list = [
+    ...(user.passkeys ?? []),
+    { id: credId, createdAt: new Date().toISOString(), transports },
+  ];
+  await putUser(env, { ...user, passkeys: list });
+}
+
 // ── Register begin ────────────────────────────────────────────────────────────
 
+/**
+ * Start passkey registration.
+ * - With `Authorization: Bearer <jwt>`: add a passkey to the signed-in account (no body).
+ * - Without JWT: `{ email }` required — same email reuses one account (magic link + passkeys).
+ */
 export async function registerBegin(request: Request, env: Env): Promise<Response> {
-  const body = await request.json<{ email?: string }>();
-  const email = body.email?.toLowerCase().trim();
-  if (!email || !email.includes('@')) return jsonResponse({ error: 'Invalid email' }, 400, env);
+  let userId: string;
+  let email:  string;
+  let user:   User | null;
 
-  const userId    = await upsertUserByEmail(env, email);
-  const user      = await getUser(env, userId);
+  if (/^Bearer\s+\S/i.test(request.headers.get('Authorization') ?? '')) {
+    const { userId: uid, error } = await verifyToken(request, env);
+    if (error || !uid) return jsonResponse({ error: error ?? 'Unauthorized' }, 401, env);
+    userId = uid;
+    user   = await getUser(env, userId);
+    if (!user) return jsonResponse({ error: 'User not found' }, 404, env);
+    email = user.email;
+  } else {
+    let body: { email?: string } = {};
+    try {
+      body = await request.json<{ email?: string }>();
+    } catch { /* empty body */ }
+    const em = body.email?.toLowerCase().trim();
+    if (!em || !em.includes('@')) return jsonResponse({ error: 'Invalid email' }, 400, env);
+    email  = em;
+    userId = await upsertUserByEmail(env, email);
+    user   = await getUser(env, userId);
+  }
+
   const challenge = generateRandomToken();
 
   await putChallenge(env, challenge, { userId, email, type: 'register' });
@@ -83,12 +141,16 @@ export async function registerFinish(request: Request, env: Env): Promise<Respon
 
   const credId = bufferToBase64url(authData.credentialId);
 
+  const transports = credential.response.transports ?? [];
+
   await putCredential(env, credId, {
     userId:        challengeData.userId!,
     publicKeyCose: bufferToBase64url(authData.credentialPublicKey),
     counter:       authData.counter,
-    transports:    credential.response.transports ?? [],
+    transports,
   });
+
+  await recordPasskeyMeta(env, challengeData.userId!, credId, transports);
 
   const user  = await getUser(env, challengeData.userId!);
   const token = await issueToken(challengeData.userId!, env);
@@ -162,7 +224,43 @@ export async function loginFinish(request: Request, env: Env): Promise<Response>
 
   await putCredential(env, credential.id, { ...credEntry, counter: authData.counter });
 
+  await ensurePasskeyMeta(env, credEntry.userId, credential.id, credEntry.transports);
+
   const user  = await getUser(env, credEntry.userId);
   const token = await issueToken(credEntry.userId, env);
   return jsonResponse({ token, userId: credEntry.userId, username: user?.username }, 200, env);
+}
+
+// ── Passkey list / revoke (authenticated) ─────────────────────────────────────
+
+export async function listPasskeys(request: Request, env: Env): Promise<Response> {
+  const { userId, error } = await verifyToken(request, env);
+  if (error || !userId) return jsonResponse({ error: error ?? 'Unauthorized' }, 401, env);
+
+  const user = await getUser(env, userId);
+  if (!user) return jsonResponse({ error: 'User not found' }, 404, env);
+
+  return jsonResponse({ passkeys: user.passkeys ?? [] }, 200, env);
+}
+
+export async function deletePasskey(request: Request, env: Env): Promise<Response> {
+  const { userId, error } = await verifyToken(request, env);
+  if (error || !userId) return jsonResponse({ error: error ?? 'Unauthorized' }, 401, env);
+
+  const credId = new URL(request.url).searchParams.get('id');
+  if (!credId) return jsonResponse({ error: 'Missing credential id' }, 400, env);
+
+  const entry = await getCredential(env, credId);
+  if (!entry) return jsonResponse({ error: 'Credential not found' }, 404, env);
+  if (entry.userId !== userId) return jsonResponse({ error: 'Forbidden' }, 403, env);
+
+  await deleteCredential(env, credId);
+
+  const user = await getUser(env, userId);
+  if (user?.passkeys?.length) {
+    const passkeys = user.passkeys.filter((p) => p.id !== credId);
+    await putUser(env, { ...user, passkeys });
+  }
+
+  return jsonResponse({ ok: true }, 200, env);
 }

@@ -1,6 +1,9 @@
 import type { Env }          from './types.js';
 import { corsHeaders, jsonResponse } from './lib/http.js';
-import { registerBegin, registerFinish, loginBegin, loginFinish } from './auth/passkey.js';
+import {
+  registerBegin, registerFinish, loginBegin, loginFinish,
+  listPasskeys, deletePasskey,
+} from './auth/passkey.js';
 import { magicSend, magicVerify }    from './auth/magic.js';
 import { verifyToken }               from './auth/jwt.js';
 import { getCards, setCards }        from './cards.js';
@@ -26,6 +29,8 @@ export default {
       else if (pathname === '/auth/register/finish' && request.method === 'POST') response = await registerFinish(request, env);
       else if (pathname === '/auth/login/begin'     && request.method === 'POST') response = await loginBegin(request, env);
       else if (pathname === '/auth/login/finish'    && request.method === 'POST') response = await loginFinish(request, env);
+      else if (pathname === '/auth/passkeys'       && request.method === 'GET') response = await listPasskeys(request, env);
+      else if (pathname === '/auth/passkeys'       && request.method === 'DELETE') response = await deletePasskey(request, env);
 
       // ── Auth — magic link ───────────────────────────────────────────────────
       else if (pathname === '/auth/magic/send'   && request.method === 'POST') response = await magicSend(request, env);
@@ -37,9 +42,11 @@ export default {
         if (error || !userId) response = jsonResponse({ error: error ?? 'Unauthorized' }, 401, env);
         else {
           const user = await getUser(env, userId);
-          response = user
-            ? jsonResponse(user, 200, env)
-            : jsonResponse({ error: 'User not found' }, 404, env);
+          if (!user) response = jsonResponse({ error: 'User not found' }, 404, env);
+          else {
+            const { passkeys: _omitPasskeys, ...publicUser } = user;
+            response = jsonResponse(publicUser, 200, env);
+          }
         }
       }
 

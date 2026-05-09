@@ -13,6 +13,11 @@ import {
   closeOnBackdrop, showPage, toggleSearch, switchBarcodeView,
 } from './ui/cards.js';
 import { showToast }                from './ui/toast.js';
+import {
+  refreshAccountPasskeys,
+  handleAccountAddPasskey,
+  handleAccountRemovePasskey,
+} from './ui/account-passkeys.js';
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -95,8 +100,15 @@ function wire(): void {
   });
 
   // Account / sign out
-  on('user-pill',    'click', () => openSheet('account-overlay'));
-  on('account-avatar','click',() => openSheet('account-overlay'));
+  on('user-pill',     'click', () => {
+    openSheet('account-overlay');
+    void refreshAccountPasskeys();
+  });
+  on('account-avatar', 'click', () => {
+    openSheet('account-overlay');
+    void refreshAccountPasskeys();
+  });
+  on('add-passkey-btn', 'click', () => void handleAccountAddPasskey());
   on('sign-out-btn', 'click', () => {
     if (!confirm('Sign out?')) return;
     clearSession();
@@ -136,6 +148,14 @@ function wire(): void {
       const target = btn.dataset['closeSheet'];
       if (target) closeSheet(target);
     });
+  });
+
+  document.getElementById('passkeys-list')?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('button[data-cred-id]') as HTMLButtonElement | null;
+    const id  = btn?.dataset.credId;
+    if (!id) return;
+    e.preventDefault();
+    void handleAccountRemovePasskey(id);
   });
 
   // Category chips

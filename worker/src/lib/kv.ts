@@ -22,6 +22,9 @@ export const getCredential = (env: Env, credId: string) =>
 export const putCredential = (env: Env, credId: string, cred: Credential) =>
   env.CARDEX_KV.put(`cred:${credId}`, JSON.stringify(cred));
 
+export const deleteCredential = (env: Env, credId: string) =>
+  env.CARDEX_KV.delete(`cred:${credId}`);
+
 // ── Challenge ─────────────────────────────────────────────────────────────────
 
 export const putChallenge = (env: Env, token: string, data: ChallengeData) =>

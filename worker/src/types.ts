@@ -1,10 +1,19 @@
 // ── KV value shapes ───────────────────────────────────────────────────────────
 
+/** Stored passkey metadata for listing / removal (credential public key stays under cred:*). */
+export interface PasskeyMeta {
+  id:         string; // WebAuthn credential id (base64url)
+  createdAt:  string; // ISO
+  transports: string[];
+}
+
 export interface User {
   id:        string;
   username:  string;
   email:     string;
   createdAt: string;
+  /** Passkeys registered for this account (backfilled on login when missing). */
+  passkeys?: PasskeyMeta[];
 }
 
 export interface Credential {
