@@ -40,6 +40,39 @@ export const authLoginBegin     = ()                  => request<{ options: Publ
 export const authLoginFinish    = (body: unknown)    => request<AuthResponse>('/auth/login/finish',    'POST', body);
 export const authMagicSend      = (email: string)    => request<{ ok: boolean; error?: string }>('/auth/magic/send',   'POST', { email });
 export const authMagicVerify    = (token: string)    => request<AuthResponse>('/auth/magic/verify', 'POST', { token });
+
+/** Magic verify with HTTP status — used for Safari / PWA retry logic (do not strip ?magic= until success). */
+export type MagicVerifyRequestResult =
+  | { status: 'ok'; data: AuthResponse }
+  | { status: 'fail'; transient: boolean; error?: string };
+
+export async function authMagicVerifyRequest(token: string): Promise<MagicVerifyRequestResult> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/magic/verify`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ token }),
+    });
+    let data: AuthResponse & { error?: string };
+    try {
+      data = (await res.json()) as AuthResponse & { error?: string };
+    } catch {
+      const transient =
+        res.status >= 500 || res.status === 0 || res.status === 429 || res.status === 408;
+      return { status: 'fail', transient };
+    }
+    if (res.ok && data.token && data.userId) {
+      return {
+        status: 'ok',
+        data:   { token: data.token, userId: data.userId, username: data.username },
+      };
+    }
+    const transient = res.status >= 500 || res.status === 429 || res.status === 408;
+    return { status: 'fail', transient, error: data.error };
+  } catch {
+    return { status: 'fail', transient: true };
+  }
+}
 export const authMe             = ()                  => request<{ id: string; username: string; email: string }>('/auth/me', 'GET');
 export const authPasskeysList   = ()                  => request<{ passkeys: PasskeyMeta[]; error?: string }>('/auth/passkeys', 'GET');
 export const authPasskeyDelete  = (id: string)      =>
