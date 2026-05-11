@@ -521,7 +521,7 @@ html, body {
 }
 .passkeys-row-text { min-width: 0; flex: 1; }
 .passkeys-row-title { font-size: 14px; font-weight: 500; }
-.passkeys-row-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; word-break: break-word; }
+.passkeys-row-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; overflow-wrap: break-word; }
 .passkeys-remove-btn {
   flex-shrink: 0; font-size: 13px; padding: 8px 12px; border-radius: 8px;
   border: 1px solid var(--border); background: transparent; color: var(--muted);
