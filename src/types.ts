@@ -17,6 +17,12 @@ export interface Tombstone {
   deletedAt: string; // ISO timestamp
 }
 
+export interface PasskeyMeta {
+  id:         string;
+  createdAt:  string;
+  transports: string[];
+}
+
 export interface Session {
   token:    string;
   userId:   string;

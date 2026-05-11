@@ -1,4 +1,4 @@
-import type { Card, Tombstone, AuthResponse } from './types.js';
+import type { Card, Tombstone, AuthResponse, PasskeyMeta } from './types.js';
 
 // ⚠️  Set this to your deployed Worker URL
 export const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8787').replace(/\/$/, '');
@@ -28,7 +28,13 @@ async function request<T>(
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export const authRegisterBegin  = (email: string)    => request<{ options: PublicKeyCredentialCreationOptionsJSON }>('/auth/register/begin',  'POST', { email });
+/** Omit `email` when signed in to add a passkey to the current account. */
+export const authRegisterBegin = (email?: string) =>
+  request<{ options: PublicKeyCredentialCreationOptionsJSON; error?: string }>(
+    '/auth/register/begin',
+    'POST',
+    email !== undefined ? { email } : {},
+  );
 export const authRegisterFinish = (body: unknown)    => request<AuthResponse>('/auth/register/finish', 'POST', body);
 export const authLoginBegin     = ()                  => request<{ options: PublicKeyCredentialRequestOptionsJSON  }>('/auth/login/begin',     'POST', {});
 export const authLoginFinish    = (body: unknown)    => request<AuthResponse>('/auth/login/finish',    'POST', body);
@@ -68,6 +74,9 @@ export async function authMagicVerifyRequest(token: string): Promise<MagicVerify
   }
 }
 export const authMe             = ()                  => request<{ id: string; username: string; email: string }>('/auth/me', 'GET');
+export const authPasskeysList   = ()                  => request<{ passkeys: PasskeyMeta[]; error?: string }>('/auth/passkeys', 'GET');
+export const authPasskeyDelete  = (id: string)      =>
+  request<{ ok?: boolean; error?: string }>(`/auth/passkeys?id=${encodeURIComponent(id)}`, 'DELETE');
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
 

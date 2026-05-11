@@ -48,7 +48,7 @@
 
     <!-- Register -->
     <div class="auth-card" id="auth-register-panel" style="display:none">
-      <div><h2>Create account</h2><p>Enter your email to register a passkey. Your email links passkey and magic link to the same account.</p></div>
+      <div><h2>Create account</h2><p>Enter your email to register a passkey. The same email always maps to one account (including magic link). After sign-in, you can add more passkeys from your profile.</p></div>
       <div class="auth-error" id="register-error"></div>
       <input class="auth-input" type="email" id="reg-email" placeholder="your@email.com" autocomplete="email" />
       <button class="passkey-btn" id="register-btn">
@@ -247,6 +247,12 @@
     <div class="account-info">
       <div class="account-avatar-lg" id="account-avatar">?</div>
       <div><div class="account-name" id="account-name">…</div></div>
+    </div>
+    <div class="account-passkeys">
+      <div class="account-passkeys-head">Passkeys</div>
+      <p class="account-passkeys-hint">Passkeys listed here can sign in to this account. Add one on each device you use.</p>
+      <div id="passkeys-list" class="passkeys-list"></div>
+      <button type="button" class="account-menu-item" id="add-passkey-btn"><span class="item-icon">➕</span><span>Add passkey on this device</span></button>
     </div>
     <div class="account-menu">
       <button class="account-menu-item" id="sign-out-btn" style="color:var(--danger)"><span class="item-icon">🚪</span><span>Sign out</span></button>

@@ -24,7 +24,8 @@ function b64urlDecode(s: string): ArrayBuffer {
 
 // ── Register ──────────────────────────────────────────────────────────────────
 
-export async function registerWithPasskey(email: string): Promise<AuthResponse> {
+/** Pass `email` on the sign-up screen; omit when signed in to pair another passkey. */
+export async function registerWithPasskey(email?: string): Promise<AuthResponse> {
   const { options, error } = await authRegisterBegin(email) as { options?: any; error?: string };
   if (error || !options) throw new Error(error ?? 'Registration failed');
 
@@ -36,7 +37,7 @@ export async function registerWithPasskey(email: string): Promise<AuthResponse> 
     },
   }) as PublicKeyCredential & { response: AuthenticatorAttestationResponse };
 
-  return authRegisterFinish({
+  const out = await authRegisterFinish({
     challengeToken: options.challenge,
     credential: {
       id:   cred.id,
@@ -48,6 +49,8 @@ export async function registerWithPasskey(email: string): Promise<AuthResponse> 
       },
     },
   });
+  if (out.error || !out.token) throw new Error(out.error ?? 'Registration failed');
+  return out;
 }
 
 // ── Login ─────────────────────────────────────────────────────────────────────
