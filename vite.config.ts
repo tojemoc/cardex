@@ -3,6 +3,10 @@ import { VitePWA }      from 'vite-plugin-pwa';
 import pkg              from './package.json';
 
 export default defineConfig({
+  optimizeDeps: {
+    // WASM polyfill must not be pre-bundled by Vite
+    exclude: ['@undecaf/barcode-detector-polyfill', '@undecaf/zbar-wasm'],
+  },
   define: {
     // Makes __APP_VERSION__ available as a typed string at build time.
     // Usage in TS: declare const __APP_VERSION__: string;  (already in globals.d.ts)

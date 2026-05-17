@@ -1,12 +1,9 @@
 /**
- * Camera barcode scanner using the BarcodeDetector API.
+ * Camera barcode scanner.
  *
- * Works on Chrome Android 9+ and Chrome desktop.
- * No fallback library needed — target platform (Android Chrome) has full support.
- *
- * Usage:
- *   const result = await startScan();   // opens overlay, resolves on first scan
- *   // result.value, result.format
+ * Uses native BarcodeDetector on Chrome Android / desktop when reliable.
+ * On iOS, loads a ZBar WASM polyfill — the native API exists but does not decode
+ * live video frames.
  */
 
 export interface ScanResult {
@@ -14,27 +11,27 @@ export interface ScanResult {
   format: string;
 }
 
-// BarcodeDetector is not yet in the standard TypeScript lib, declare it here.
 interface BarcodeDetectorOptions {
   formats?: string[];
 }
 interface DetectedBarcode {
-  rawValue:        string;
-  format:          string;
-  boundingBox:     DOMRectReadOnly;
-  cornerPoints:    { x: number; y: number }[];
+  rawValue:     string;
+  format:       string;
+  boundingBox:  DOMRectReadOnly;
+  cornerPoints: { x: number; y: number }[];
 }
-declare class BarcodeDetector {
-  constructor(options?: BarcodeDetectorOptions);
-  detect(image: ImageBitmapSource): Promise<DetectedBarcode[]>;
-  static getSupportedFormats(): Promise<string[]>;
+interface BarcodeDetectorCtor {
+  new (options?: BarcodeDetectorOptions): {
+    detect(image: ImageBitmapSource): Promise<DetectedBarcode[]>;
+  };
+  getSupportedFormats(): Promise<string[]>;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/** Returns true if BarcodeDetector is available in this browser. */
+/** True when this device can open a camera for scanning. */
 export async function isSupported(): Promise<boolean> {
-  return 'BarcodeDetector' in window;
+  return !!navigator.mediaDevices?.getUserMedia;
 }
 
 /**
@@ -66,13 +63,16 @@ export async function startScan(): Promise<ScanResult> {
     const overlay = buildOverlay();
     document.body.appendChild(overlay);
 
-    let animFrame: number | null          = null;
-    let detector:  BarcodeDetector | null = null;
+    let animFrame: number | null = null;
+    let scanTimer: ReturnType<typeof setTimeout> | null = null;
+    let detector:  InstanceType<BarcodeDetectorCtor> | null = null;
+    let scanning = false;
     let done = false;
 
     function cleanup() {
       done = true;
       if (animFrame !== null) cancelAnimationFrame(animFrame);
+      if (scanTimer !== null) clearTimeout(scanTimer);
       stream.getTracks().forEach(t => t.stop());
       overlay.remove();
     }
@@ -85,47 +85,134 @@ export async function startScan(): Promise<ScanResult> {
 
     async function init() {
       try {
-        const formats = await BarcodeDetector.getSupportedFormats();
-        detector = new BarcodeDetector({ formats });
+        const Detector = await resolveDetectorCtor();
+        const formats  = await Detector.getSupportedFormats();
+        detector = new Detector({ formats });
 
         const video = overlay.querySelector<HTMLVideoElement>('#scanner-video')!;
         video.srcObject = stream;
         await video.play();
+        await waitForVideoReady(video);
 
-        scanLoop(video);
+        scheduleScan(video);
       } catch (err) {
         cleanup();
         reject(err);
       }
     }
 
-    function scanLoop(video: HTMLVideoElement) {
+    function scheduleScan(video: HTMLVideoElement) {
       if (done) return;
 
-      animFrame = requestAnimationFrame(async () => {
-        if (done || !detector) return;
+      const intervalMs = usePolyfill() ? 120 : 0;
 
-        try {
-          const results = await detector.detect(video);
-          if (results.length > 0) {
-            const hit = results[0]!;
-            cleanup();
-            resolve({
-              value:  hit.rawValue,
-              format: normaliseFormat(hit.format),
-            });
-            return;
+      const tick = () => {
+        if (done) return;
+        void runScan(video).finally(() => {
+          if (done) return;
+          if (intervalMs > 0) {
+            scanTimer = setTimeout(tick, intervalMs);
+          } else {
+            animFrame = requestAnimationFrame(tick);
           }
-        } catch {
-          // Frame decode errors are normal — keep looping
-        }
+        });
+      };
 
-        scanLoop(video);
-      });
+      tick();
+    }
+
+    async function runScan(video: HTMLVideoElement) {
+      if (done || !detector || scanning) return;
+      if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+      scanning = true;
+      try {
+        const source  = await frameSource(video);
+        const results = await detector.detect(source);
+        if (results.length > 0) {
+          const hit = results[0]!;
+          cleanup();
+          resolve({
+            value:  hit.rawValue,
+            format: normaliseFormat(hit.format),
+          });
+        }
+      } catch {
+        // Frame decode errors are normal — keep looping
+      } finally {
+        scanning = false;
+      }
     }
 
     init();
   });
+}
+
+// ── Detector selection ────────────────────────────────────────────────────────
+
+let polyfillActive = false;
+
+function usePolyfill(): boolean {
+  return isAppleMobile();
+}
+
+function isAppleMobile(): boolean {
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+async function resolveDetectorCtor(): Promise<BarcodeDetectorCtor> {
+  if (!usePolyfill() && 'BarcodeDetector' in window) {
+    try {
+      const native = (window as Window & { BarcodeDetector: BarcodeDetectorCtor }).BarcodeDetector;
+      await native.getSupportedFormats();
+      return native;
+    } catch {
+      // Native API present but unusable — fall through to polyfill
+    }
+  }
+
+  const { BarcodeDetectorPolyfill } = await import('@undecaf/barcode-detector-polyfill');
+  polyfillActive = true;
+  return BarcodeDetectorPolyfill as unknown as BarcodeDetectorCtor;
+}
+
+async function waitForVideoReady(video: HTMLVideoElement): Promise<void> {
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new DOMException('Camera preview timed out', 'TimeoutError'));
+    }, 12_000);
+
+    const onReady = () => {
+      if (video.videoWidth === 0) return;
+      clearTimeout(timeout);
+      video.removeEventListener('loadedmetadata', onReady);
+      video.removeEventListener('playing', onReady);
+      resolve();
+    };
+
+    video.addEventListener('loadedmetadata', onReady);
+    video.addEventListener('playing', onReady);
+    onReady();
+  });
+}
+
+async function frameSource(video: HTMLVideoElement): Promise<ImageBitmapSource> {
+  // The WASM polyfill extracts frames from <video> itself (required on iOS).
+  if (polyfillActive || usePolyfill()) {
+    return video;
+  }
+
+  try {
+    return await createImageBitmap(video);
+  } catch {
+    return video;
+  }
 }
 
 // ── Overlay DOM ───────────────────────────────────────────────────────────────
