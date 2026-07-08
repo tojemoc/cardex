@@ -1,4 +1,5 @@
 import type { Env } from '../types.js';
+import { allowedOrigins } from './http.js';
 
 interface BrevoOptions {
   apiKey:    string;
@@ -28,7 +29,10 @@ export async function sendBrevoEmail(opts: BrevoOptions): Promise<{ ok: boolean;
 }
 
 export function requestOrigin(request: Request, env: Env): string {
-  return request.headers.get('Origin') || env.FRONTEND_ORIGIN || 'https://vibecoded-stocard.pages.dev';
+  const origin  = request.headers.get('Origin');
+  const allowed = allowedOrigins(env);
+  if (origin && allowed.includes(origin)) return origin;
+  return env.FRONTEND_ORIGIN || 'https://vibecoded-stocard.pages.dev';
 }
 
 export function buildMagicEmailHtml(magicUrl: string): string {

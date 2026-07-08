@@ -20,7 +20,12 @@ const GRANT_TTL_MS = 10 * 60 * 1_000;
 // ── Send confirmation email (new accounts only) ───────────────────────────────
 
 export async function passkeySetupSend(request: Request, env: Env): Promise<Response> {
-  const body  = await request.json<{ email?: string }>();
+  let body: { email?: string } = {};
+  try {
+    body = await request.json<{ email?: string }>();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON' }, 400, env);
+  }
   const email = body.email?.toLowerCase().trim();
   if (!email || !email.includes('@')) return jsonResponse({ error: 'Invalid email' }, 400, env);
 
@@ -58,7 +63,13 @@ export async function passkeySetupSend(request: Request, env: Env): Promise<Resp
 // ── Verify email link → short-lived registration grant ────────────────────────
 
 export async function passkeySetupVerify(request: Request, env: Env): Promise<Response> {
-  const { token } = await request.json<{ token?: string }>();
+  let body: { token?: string } = {};
+  try {
+    body = await request.json<{ token?: string }>();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON' }, 400, env);
+  }
+  const token = body.token?.trim();
   if (!token) return jsonResponse({ error: 'Missing token' }, 400, env);
 
   const data = await getAndDeletePasskeySetupLink(env, token);

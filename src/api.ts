@@ -66,11 +66,18 @@ export async function authPasskeySetupVerifyRequest(token: string): Promise<Pass
         res.status >= 500 || res.status === 0 || res.status === 429 || res.status === 408;
       return { status: 'fail', transient };
     }
-    if (res.ok && data.setupToken && data.email) {
+    if (
+      res.ok
+      && data
+      && typeof data === 'object'
+      && data.setupToken
+      && data.email
+    ) {
       return { status: 'ok', setupToken: data.setupToken, email: data.email };
     }
     const transient = res.status >= 500 || res.status === 429 || res.status === 408;
-    return { status: 'fail', transient, error: data.error, detail: data.detail };
+    const errBody   = data && typeof data === 'object' ? data : undefined;
+    return { status: 'fail', transient, error: errBody?.error ?? 'Invalid server response', detail: errBody?.detail };
   } catch {
     return { status: 'fail', transient: true };
   }
