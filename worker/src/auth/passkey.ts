@@ -1,10 +1,14 @@
 import type { Env, PasskeyMeta, User }  from '../types.js';
 import { jsonResponse }                 from '../lib/http.js';
 import { generateRandomToken, base64urlDecode, bufferToBase64url, concat } from '../lib/encoding.js';
-import { parseAttestationObject, parseAuthenticatorData, verifyCoseSignature, sha256 } from '../lib/cose.js';
+import {
+  parseAttestationObject, parseAuthenticatorData, verifyCoseSignature,
+  sha256, rpIdHash, bytesEqual,
+} from '../lib/cose.js';
+import { cborDecode } from '../lib/cbor.js';
 import {
   getAndDeleteChallenge, putChallenge, getCredential, putCredential, getUser, putUser,
-  upsertUserByEmail, deleteCredential,
+  deleteCredential, getPasskeySetupGrant, deletePasskeySetupGrant,
 } from '../lib/kv.js';
 import { issueToken, verifyToken }      from './jwt.js';
 
@@ -19,6 +23,16 @@ function verifyOrigin(origin: string, env: Env): boolean {
     'http://localhost:4173',
   ];
   return allowed.includes(origin);
+}
+
+async function verifyRpIdInAuthData(authDataBuf: Uint8Array, env: Env): Promise<boolean> {
+  const expected = await rpIdHash(getRpId(env));
+  return bytesEqual(authDataBuf.slice(0, 32), expected);
+}
+
+function isUserVerified(authDataBuf: Uint8Array): boolean {
+  const flags = authDataBuf[32] ?? 0;
+  return (flags & 0x04) !== 0;
 }
 
 async function recordPasskeyMeta(
@@ -58,13 +72,15 @@ async function ensurePasskeyMeta(
 
 /**
  * Start passkey registration.
- * - With `Authorization: Bearer <jwt>`: add a passkey to the signed-in account (no body).
- * - Without JWT: `{ email }` required — same email reuses one account (magic link + passkeys).
+ * - With `Authorization: Bearer <jwt>`: add a passkey to the signed-in account.
+ * - With `{ setupToken }`: after email-confirmed setup link (new account only).
+ * - Raw `{ email }` without proof is rejected (prevents account takeover).
  */
 export async function registerBegin(request: Request, env: Env): Promise<Response> {
-  let userId: string;
-  let email:  string;
-  let user:   User | null;
+  let userId:         string;
+  let email:          string;
+  let user:           User | null;
+  let registerSource: 'jwt' | 'setup';
 
   if (/^Bearer\s+\S/i.test(request.headers.get('Authorization') ?? '')) {
     const { userId: uid, error } = await verifyToken(request, env);
@@ -72,22 +88,72 @@ export async function registerBegin(request: Request, env: Env): Promise<Respons
     userId = uid;
     user   = await getUser(env, userId);
     if (!user) return jsonResponse({ error: 'User not found' }, 404, env);
-    email = user.email;
+    email          = user.email;
+    registerSource = 'jwt';
   } else {
-    let body: { email?: string } = {};
+    let body: { email?: string; setupToken?: string } = {};
     try {
-      body = await request.json<{ email?: string }>();
+      body = await request.json<{ email?: string; setupToken?: string }>();
     } catch { /* empty body */ }
-    const em = body.email?.toLowerCase().trim();
-    if (!em || !em.includes('@')) return jsonResponse({ error: 'Invalid email' }, 400, env);
-    email  = em;
-    userId = await upsertUserByEmail(env, email);
-    user   = await getUser(env, userId);
+
+    // Reject the old insecure path: email alone is never sufficient.
+    if (body.email && !body.setupToken) {
+      return jsonResponse({
+        error:  'EMAIL_CONFIRMATION_REQUIRED',
+        detail: 'Confirm your email first. Use the registration form to receive a confirmation link.',
+      }, 403, env);
+    }
+
+    const setupToken = body.setupToken?.trim();
+    if (!setupToken) {
+      return jsonResponse({
+        error:  'SETUP_TOKEN_REQUIRED',
+        detail: 'Email confirmation required before registering a passkey.',
+      }, 403, env);
+    }
+
+    const grant = await getPasskeySetupGrant(env, setupToken);
+    if (!grant)                    return jsonResponse({ error: 'Setup session expired' }, 401, env);
+    if (Date.now() > grant.expires) return jsonResponse({ error: 'Setup session expired' }, 401, env);
+
+    userId         = grant.userId;
+    email          = grant.email;
+    user           = await getUser(env, userId);
+    registerSource = 'setup';
+
+    const challenge = generateRandomToken();
+    await putChallenge(env, challenge, {
+      userId, email, type: 'register', registerSource, setupToken,
+    });
+
+    return jsonResponse({
+      options: {
+        challenge,
+        rp:   { name: 'Cardex Loyalty Wallet', id: getRpId(env) },
+        user: {
+          id:          userId,
+          name:        email,
+          displayName: user?.username ?? (email.split('@')[0] ?? email),
+        },
+        pubKeyCredParams: [
+          { alg: -7,   type: 'public-key' },
+          { alg: -257, type: 'public-key' },
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform',
+          residentKey:             'required',
+          requireResidentKey:      true,
+          userVerification:        'required',
+        },
+        timeout:     60_000,
+        attestation: 'none',
+      },
+    }, 200, env);
   }
 
   const challenge = generateRandomToken();
 
-  await putChallenge(env, challenge, { userId, email, type: 'register' });
+  await putChallenge(env, challenge, { userId, email, type: 'register', registerSource });
 
   return jsonResponse({
     options: {
@@ -126,6 +192,10 @@ export async function registerFinish(request: Request, env: Env): Promise<Respon
   if (!challengeData || challengeData.type !== 'register')
     return jsonResponse({ error: 'Invalid or expired challenge' }, 400, env);
 
+  if (!challengeData.registerSource) {
+    return jsonResponse({ error: 'Registration not authorized' }, 403, env);
+  }
+
   const clientDataJSON = base64urlDecode(credential.response.clientDataJSON);
   const clientData     = JSON.parse(new TextDecoder().decode(clientDataJSON)) as {
     type: string; challenge: string; origin: string;
@@ -141,6 +211,26 @@ export async function registerFinish(request: Request, env: Env): Promise<Respon
 
   const credId = bufferToBase64url(authData.credentialId);
 
+  if (credId !== credential.id) {
+    return jsonResponse({ error: 'Credential id mismatch' }, 400, env);
+  }
+
+  const existing = await getCredential(env, credId);
+  if (existing) {
+    return jsonResponse({
+      error:  'PASSKEY_EXISTS',
+      detail: 'This passkey is already registered. Sign in with it, or add a new passkey from your profile while signed in.',
+    }, 409, env);
+  }
+
+  const attObj         = cborDecode(base64urlDecode(credential.response.attestationObject)) as Record<string, unknown>;
+  const attestationBuf = attObj['authData'] as Uint8Array;
+
+  if (!await verifyRpIdInAuthData(attestationBuf, env))
+    return jsonResponse({ error: 'RP ID mismatch' }, 400, env);
+  if (!isUserVerified(attestationBuf))
+    return jsonResponse({ error: 'User verification required' }, 400, env);
+
   const transports = credential.response.transports ?? [];
 
   await putCredential(env, credId, {
@@ -151,6 +241,10 @@ export async function registerFinish(request: Request, env: Env): Promise<Respon
   });
 
   await recordPasskeyMeta(env, challengeData.userId!, credId, transports);
+
+  if (challengeData.registerSource === 'setup' && challengeData.setupToken) {
+    await deletePasskeySetupGrant(env, challengeData.setupToken);
+  }
 
   const user  = await getUser(env, challengeData.userId!);
   const token = await issueToken(challengeData.userId!, env);
@@ -209,6 +303,11 @@ export async function loginFinish(request: Request, env: Env): Promise<Response>
 
   const authDataBuf = base64urlDecode(credential.response.authenticatorData);
   const authData    = parseAuthenticatorData(authDataBuf);
+
+  if (!await verifyRpIdInAuthData(authDataBuf, env))
+    return jsonResponse({ error: 'RP ID mismatch' }, 400, env);
+  if (!isUserVerified(authDataBuf))
+    return jsonResponse({ error: 'User verification required' }, 400, env);
 
   if (authData.counter > 0 && authData.counter <= credEntry.counter)
     return jsonResponse({ error: 'Counter replay detected' }, 400, env);

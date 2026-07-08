@@ -27,6 +27,23 @@ export interface ChallengeData {
   userId?: string;
   email?:  string;
   type:    'register' | 'login';
+  /** Registration authorized via JWT (add passkey) or email setup token (new account). */
+  registerSource?: 'jwt' | 'setup';
+  /** Setup grant token — consumed when registration finishes successfully. */
+  setupToken?: string;
+}
+
+/** Email link for first-time passkey registration (?passkey-setup=). */
+export interface PasskeySetupLinkData {
+  email:   string;
+  expires: number;
+}
+
+/** Short-lived grant after setup link verify — required for register/begin without JWT. */
+export interface PasskeySetupGrantData {
+  userId:  string;
+  email:   string;
+  expires: number;
 }
 
 export interface MagicLinkData {

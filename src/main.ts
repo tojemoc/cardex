@@ -2,8 +2,8 @@ import { loadSession, saveSession, clearSession, getSession } from './auth/sessi
 import { syncOnOpen }                from './cards/sync.js';
 import { loadFromLocalStorage }     from './cards/store.js';
 import {
-  showPanel, showAuthScreen, handleRegister,
-  handleLogin, handleMagicSend, handleMagicVerify,
+  showPanel, showAuthScreen, handleRegisterSendEmail,
+  handleLogin, handleMagicSend, handleMagicVerify, handlePasskeySetupVerify,
 } from './ui/auth.js';
 import {
   renderCards, filterByCategory, openDetail,
@@ -26,7 +26,15 @@ async function init(): Promise<void> {
   buildColorPicker();
   loadFromLocalStorage();
 
-  // 1. Check for ?magic= token first
+  // 1. Check for ?passkey-setup= (email-confirmed registration)
+  const setupResult = await handlePasskeySetupVerify();
+  if (setupResult) {
+    saveSession(setupResult);
+    await bootMainApp();
+    return;
+  }
+
+  // 2. Check for ?magic= token
   const magicResult = await handleMagicVerify();
   if (magicResult) {
     saveSession(magicResult);
@@ -34,14 +42,14 @@ async function init(): Promise<void> {
     return;
   }
 
-  // 2. Restore existing session
+  // 3. Restore existing session
   const session = loadSession();
   if (session) {
     await bootMainApp();
     return;
   }
 
-  // 3. No session — show auth
+  // 4. No session — show auth
   showAuthScreen();
   showPanel('login');
 }
@@ -77,10 +85,7 @@ function wire(): void {
     const r = await handleLogin();
     if (r) { saveSession(r); await bootMainApp(); }
   });
-  on('register-btn',     'click', async () => {
-    const r = await handleRegister();
-    if (r) { saveSession(r); await bootMainApp(); }
-  });
+  on('register-btn',     'click', () => void handleRegisterSendEmail());
   on('magic-btn',        'click', () => handleMagicSend());
   on('show-register',    'click', () => showPanel('register'));
   on('show-login',       'click', () => showPanel('login'));

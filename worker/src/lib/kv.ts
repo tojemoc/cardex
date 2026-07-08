@@ -1,4 +1,7 @@
-import type { Env, User, Credential, ChallengeData, MagicLinkData, Card, Tombstone } from '../types.js';
+import type {
+  Env, User, Credential, ChallengeData, MagicLinkData,
+  PasskeySetupLinkData, PasskeySetupGrantData, Card, Tombstone,
+} from '../types.js';
 
 // ── User ─────────────────────────────────────────────────────────────────────
 
@@ -50,6 +53,38 @@ export async function getAndDeleteMagicLink(
 ): Promise<MagicLinkData | null> {
   const data = await env.CARDEX_KV.get<MagicLinkData>(`magiclink:${token}`, 'json');
   if (data) await env.CARDEX_KV.delete(`magiclink:${token}`);
+  return data;
+}
+
+// ── Passkey setup (email-confirmed registration) ────────────────────────────
+
+export const putPasskeySetupLink = (env: Env, token: string, data: PasskeySetupLinkData) =>
+  env.CARDEX_KV.put(`passkeysetup:${token}`, JSON.stringify(data), { expirationTtl: 900 });
+
+export async function getAndDeletePasskeySetupLink(
+  env:   Env,
+  token: string,
+): Promise<PasskeySetupLinkData | null> {
+  const data = await env.CARDEX_KV.get<PasskeySetupLinkData>(`passkeysetup:${token}`, 'json');
+  if (data) await env.CARDEX_KV.delete(`passkeysetup:${token}`);
+  return data;
+}
+
+export const putPasskeySetupGrant = (env: Env, token: string, data: PasskeySetupGrantData) =>
+  env.CARDEX_KV.put(`passkeygrant:${token}`, JSON.stringify(data), { expirationTtl: 600 });
+
+export const getPasskeySetupGrant = (env: Env, token: string) =>
+  env.CARDEX_KV.get<PasskeySetupGrantData>(`passkeygrant:${token}`, 'json');
+
+export const deletePasskeySetupGrant = (env: Env, token: string) =>
+  env.CARDEX_KV.delete(`passkeygrant:${token}`);
+
+export async function getAndDeletePasskeySetupGrant(
+  env:   Env,
+  token: string,
+): Promise<PasskeySetupGrantData | null> {
+  const data = await env.CARDEX_KV.get<PasskeySetupGrantData>(`passkeygrant:${token}`, 'json');
+  if (data) await env.CARDEX_KV.delete(`passkeygrant:${token}`);
   return data;
 }
 

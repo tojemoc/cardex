@@ -48,12 +48,13 @@
 
     <!-- Register -->
     <div class="auth-card" id="auth-register-panel" style="display:none">
-      <div><h2>Create account</h2><p>Enter your email to register a passkey. The same email always maps to one account (including magic link). After sign-in, you can add more passkeys from your profile.</p></div>
+      <div><h2>Create account</h2><p>Enter your email and we'll send a confirmation link. After you verify your email, you'll register a passkey on this device. Already have an account? Sign in first, then add passkeys from your profile.</p></div>
       <div class="auth-error" id="register-error"></div>
+      <div class="auth-success" id="register-success"></div>
       <input class="auth-input" type="email" id="reg-email" placeholder="your@email.com" autocomplete="email" />
       <button class="passkey-btn" id="register-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Register Passkey
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
+        Send confirmation email
       </button>
       <div class="auth-divider"><hr/><span>or skip passkey</span><hr/></div>
       <button class="magic-btn" id="show-magic-login-2">
@@ -250,7 +251,7 @@
     </div>
     <div class="account-passkeys">
       <div class="account-passkeys-head">Passkeys</div>
-      <p class="account-passkeys-hint">Passkeys listed here can sign in to this account. Add one on each device you use.</p>
+      <p class="account-passkeys-hint">Passkeys listed here can sign in to this account. Add one on each device you use. Remove any you don't recognize.</p>
       <div id="passkeys-list" class="passkeys-list"></div>
       <button type="button" class="account-menu-item" id="add-passkey-btn"><span class="item-icon">➕</span><span>Add passkey on this device</span></button>
     </div>
