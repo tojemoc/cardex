@@ -4,7 +4,8 @@ import {
   registerBegin, registerFinish, loginBegin, loginFinish,
   listPasskeys, deletePasskey,
 } from './auth/passkey.js';
-import { magicSend, magicVerify }    from './auth/magic.js';
+import { passkeySetupSend, passkeySetupVerify } from './auth/passkey-setup.js';
+import { magicSend, magicVerify }               from './auth/magic.js';
 import { verifyToken }               from './auth/jwt.js';
 import { getCards, setCards }        from './cards.js';
 import { getUser }                   from './lib/kv.js';
@@ -31,6 +32,8 @@ export default {
       else if (pathname === '/auth/login/finish'    && request.method === 'POST') response = await loginFinish(request, env);
       else if (pathname === '/auth/passkeys'       && request.method === 'GET') response = await listPasskeys(request, env);
       else if (pathname === '/auth/passkeys'       && request.method === 'DELETE') response = await deletePasskey(request, env);
+      else if (pathname === '/auth/passkey/setup/send'   && request.method === 'POST') response = await passkeySetupSend(request, env);
+      else if (pathname === '/auth/passkey/setup/verify' && request.method === 'POST') response = await passkeySetupVerify(request, env);
 
       // ── Auth — magic link ───────────────────────────────────────────────────
       else if (pathname === '/auth/magic/send'   && request.method === 'POST') response = await magicSend(request, env);

@@ -46,6 +46,8 @@ export function parseAttestationObject(buf: Uint8Array): AuthenticatorData {
 
 /**
  * Verify a COSE signature (ES256 or RS256).
+ * ES256: WebAuthn authenticators often emit ASN.1 DER signatures; Web Crypto
+ * expects IEEE P1363 (raw r||s). We try both encodings.
  */
 export async function verifyCoseSignature(
   coseKeyBytes: Uint8Array,
@@ -67,7 +69,15 @@ export async function verifyCoseSignature(
       false,
       ['verify'],
     );
-    return crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, signature, data);
+    const params = { name: 'ECDSA' as const, hash: 'SHA-256' as const };
+
+    if (await crypto.subtle.verify(params, key, signature, data)) return true;
+
+    const raw = ecdsaDerToRaw(signature, 32);
+    if (raw && raw.length === 64) {
+      return crypto.subtle.verify(params, key, raw, data);
+    }
+    return false;
   }
 
   // RSA-PKCS1v15 / RS256
@@ -89,6 +99,51 @@ export async function verifyCoseSignature(
 
 export async function sha256(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+}
+
+/** SHA-256 of the RP ID — must match the first 32 bytes of authenticatorData. */
+export async function rpIdHash(rpId: string): Promise<Uint8Array> {
+  return sha256(new TextEncoder().encode(rpId));
+}
+
+export function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  return diff === 0;
+}
+
+/** Convert ASN.1 DER ECDSA signature to IEEE P1363 (r||s) for Web Crypto verify. */
+export function ecdsaDerToRaw(der: Uint8Array, fieldSize: number): Uint8Array | null {
+  try {
+    if (der[0] !== 0x30) return null;
+    let offset = 2;
+    if ((der[1]! & 0x80) !== 0) offset = 2 + (der[1]! & 0x7f);
+
+    const readInt = (): Uint8Array | null => {
+      if (der[offset] !== 0x02) return null;
+      const len = der[offset + 1]!;
+      const val = der.slice(offset + 2, offset + 2 + len);
+      offset += 2 + len;
+      return val;
+    };
+
+    const r = readInt();
+    const s = readInt();
+    if (!r || !s) return null;
+
+    const raw = new Uint8Array(fieldSize * 2);
+    const pad = (src: Uint8Array, dest: Uint8Array, destOff: number) => {
+      const trimmed = src[0] === 0x00 && src.length > fieldSize ? src.slice(1) : src;
+      const start   = destOff + fieldSize - trimmed.length;
+      dest.set(trimmed, start);
+    };
+    pad(r, raw, 0);
+    pad(s, raw, fieldSize);
+    return raw;
+  } catch {
+    return null;
+  }
 }
 
 // Re-export decode for use in passkey handler

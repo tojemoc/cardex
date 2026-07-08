@@ -6,6 +6,12 @@ import {
   peekMagicTokenFromUrl,
   clearMagicTokenFromUrl,
 } from '../auth/magic.js';
+import {
+  sendPasskeySetupEmail,
+  verifyPasskeySetupTokenResilient,
+  peekPasskeySetupTokenFromUrl,
+  clearPasskeySetupTokenFromUrl,
+} from '../auth/passkey-setup.js';
 import { saveSession, clearSession }   from '../auth/session.js';
 import type { AuthResponse }           from '../types.js';
 
@@ -26,6 +32,24 @@ export function showPanel(panel: Panel): void {
   if (panel === 'magic') {
     setTimeout(() => document.getElementById('magic-email')?.focus(), 50);
   }
+  if (panel === 'register') {
+    resetRegisterPanel();
+    setTimeout(() => document.getElementById('reg-email')?.focus(), 50);
+  }
+}
+
+function resetRegisterPanel(): void {
+  const emailEl = document.getElementById('reg-email') as HTMLInputElement | null;
+  const btn     = document.getElementById('register-btn') as HTMLButtonElement | null;
+  const success = document.getElementById('register-success');
+  if (emailEl) emailEl.style.display = '';
+  if (btn) {
+    btn.style.display = '';
+    btn.disabled      = false;
+    btn.textContent   = 'Send confirmation email';
+  }
+  success?.classList.remove('show');
+  if (success) success.textContent = '';
 }
 
 // ── Auth screen visibility ────────────────────────────────────────────────────
@@ -36,9 +60,12 @@ export function showAuthScreen(): void {
   document.getElementById('main-app')!.style.display        = 'none';
 }
 
-export function showVerifyingScreen(): void {
+export function showVerifyingScreen(label = 'Signing you in…'): void {
   document.getElementById('auth-screen')!.style.display    = 'none';
-  document.getElementById('magic-verifying')!.style.display = 'flex';
+  const verifying = document.getElementById('magic-verifying')!;
+  verifying.style.display = 'flex';
+  const p = verifying.querySelector('p');
+  if (p) p.textContent = label;
   document.getElementById('main-app')!.style.display        = 'none';
 }
 
@@ -49,7 +76,7 @@ export function showAuthError(panel: Panel, msg: string): void {
   if (!el) return;
   el.textContent = msg;
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 5000);
+  setTimeout(() => el.classList.remove('show'), 8000);
 }
 
 function showAuthSuccess(panel: Panel, msg: string): void {
@@ -68,25 +95,64 @@ function setLoading(btnId: string, on: boolean, label: string): void {
   btn.textContent = on ? 'Please wait…' : label;
 }
 
-// ── Passkey register ──────────────────────────────────────────────────────────
+// ── Passkey register (email confirmation first) ───────────────────────────────
 
-export async function handleRegister(): Promise<AuthResponse | null> {
+export async function handleRegisterSendEmail(): Promise<void> {
   const email = (document.getElementById('reg-email') as HTMLInputElement).value.trim();
   if (!email || !email.includes('@')) {
     showAuthError('register', 'Please enter a valid email address');
-    return null;
+    return;
   }
-  setLoading('register-btn', true, 'Register Passkey');
+  setLoading('register-btn', true, 'Send confirmation email');
   try {
-    const result = await registerWithPasskey(email);
-    if (result.error) { showAuthError('register', result.error); return null; }
+    const { ok, error, detail } = await sendPasskeySetupEmail(email);
+    if (error === 'ACCOUNT_EXISTS') {
+      showAuthError(
+        'register',
+        detail ?? 'An account with this email already exists. Sign in, then add a passkey from your profile.',
+      );
+      return;
+    }
+    if (error || !ok) {
+      showAuthError('register', detail ?? error ?? 'Could not send email');
+      return;
+    }
+    const emailEl = document.getElementById('reg-email') as HTMLInputElement;
+    const btn     = document.getElementById('register-btn') as HTMLButtonElement;
+    emailEl.style.display = 'none';
+    btn.style.display     = 'none';
+    showAuthSuccess(
+      'register',
+      `✉️ Confirmation link sent to ${email}. Open it on this device to register your passkey. Expires in 15 minutes.`,
+    );
+  } catch {
+    showAuthError('register', 'Could not send email. Check your connection.');
+  } finally {
+    setLoading('register-btn', false, 'Send confirmation email');
+  }
+}
+
+/** After ?passkey-setup= link verify — create passkey and sign in. */
+export async function handlePasskeySetupAndRegister(setupToken: string): Promise<AuthResponse | null> {
+  showVerifyingScreen('Creating your passkey…');
+  try {
+    const result = await registerWithPasskey(setupToken);
+    if (result.error) {
+      showAuthScreen();
+      showPanel('register');
+      showAuthError('register', result.error);
+      return null;
+    }
     return result;
   } catch (e) {
     const err = e as Error;
-    showAuthError('register', err.name === 'NotAllowedError' ? 'Biometric prompt cancelled.' : err.message);
+    showAuthScreen();
+    showPanel('register');
+    showAuthError(
+      'register',
+      err.name === 'NotAllowedError' ? 'Biometric prompt cancelled.' : err.message,
+    );
     return null;
-  } finally {
-    setLoading('register-btn', false, 'Register Passkey');
   }
 }
 
@@ -96,7 +162,13 @@ export async function handleLogin(): Promise<AuthResponse | null> {
   setLoading('login-btn', true, 'Sign in with Passkey');
   try {
     const result = await loginWithPasskey();
-    if (result.error) { showAuthError('login', result.error); return null; }
+    if (result.error) {
+      const msg = result.error === 'Signature verification failed'
+        ? 'Passkey sign-in failed on this device. Try a magic link, or sign in in Safari and add a passkey for this app from your profile.'
+        : result.error;
+      showAuthError('login', msg);
+      return null;
+    }
     return result;
   } catch (e) {
     const err = e as Error;
@@ -164,6 +236,32 @@ export async function handleMagicVerify(): Promise<AuthResponse | null> {
     showAuthScreen();
     showPanel('magic');
     showAuthError('magic', 'Verification failed — please try again.');
+    return null;
+  }
+}
+
+// ── Passkey setup link verify (?passkey-setup=) ───────────────────────────────
+
+export async function handlePasskeySetupVerify(): Promise<AuthResponse | null> {
+  const token = peekPasskeySetupTokenFromUrl();
+  if (!token) return null;
+
+  showVerifyingScreen('Confirming your email…');
+  try {
+    const outcome = await verifyPasskeySetupTokenResilient(token);
+    if (outcome.kind === 'fail') {
+      showAuthScreen();
+      showPanel('register');
+      showAuthError('register', outcome.error);
+      if (outcome.clearUrl) clearPasskeySetupTokenFromUrl();
+      return null;
+    }
+    clearPasskeySetupTokenFromUrl();
+    return handlePasskeySetupAndRegister(outcome.setupToken);
+  } catch {
+    showAuthScreen();
+    showPanel('register');
+    showAuthError('register', 'Verification failed — please try again.');
     return null;
   }
 }

@@ -1,6 +1,7 @@
 import {
   authRegisterBegin, authRegisterFinish,
   authLoginBegin,    authLoginFinish,
+  type PublicKeyCredentialCreationOptionsJSON,
 } from '../api.js';
 import type { AuthResponse } from '../types.js';
 
@@ -24,17 +25,21 @@ function b64urlDecode(s: string): ArrayBuffer {
 
 // ── Register ──────────────────────────────────────────────────────────────────
 
-/** Pass `email` on the sign-up screen; omit when signed in to pair another passkey. */
-export async function registerWithPasskey(email?: string): Promise<AuthResponse> {
-  const { options, error } = await authRegisterBegin(email) as { options?: any; error?: string };
-  if (error || !options) throw new Error(error ?? 'Registration failed');
+/** After email setup verify: pass `setupToken`. Omit when signed in to pair another passkey. */
+export async function registerWithPasskey(setupToken?: string): Promise<AuthResponse> {
+  const { options, error, detail } = await authRegisterBegin(setupToken) as {
+    options?: PublicKeyCredentialCreationOptionsJSON;
+    error?: string;
+    detail?: string;
+  };
+  if (error || !options) throw new Error(detail ?? error ?? 'Registration failed');
 
   const cred = await navigator.credentials.create({
     publicKey: {
       ...options,
       challenge: b64urlDecode(options.challenge),
       user: { ...options.user, id: b64urlDecode(options.user.id) },
-    },
+    } as PublicKeyCredentialCreationOptions,
   }) as PublicKeyCredential & { response: AuthenticatorAttestationResponse };
 
   const out = await authRegisterFinish({

@@ -3,6 +3,7 @@ import { jsonResponse }          from '../lib/http.js';
 import { generateRandomToken }   from '../lib/encoding.js';
 import { upsertUserByEmail, getUser, putMagicLink, getAndDeleteMagicLink } from '../lib/kv.js';
 import { issueToken }            from './jwt.js';
+import { sendBrevoEmail, requestOrigin, buildMagicEmailHtml } from '../lib/email.js';
 
 const MAGIC_TTL_MS      = 15 * 60 * 1_000; // 15 minutes
 const MAGIC_TTL_SECONDS = 900;
@@ -19,11 +20,8 @@ export async function magicSend(request: Request, env: Env): Promise<Response> {
 
   await putMagicLink(env, token, { userId, email, expires: Date.now() + MAGIC_TTL_MS });
 
-  // Use the request's Origin so the magic link points back to whichever
-  // frontend made the request — works for staging preview URLs too.
-  const requestOrigin = request.headers.get('Origin');
-  const origin        = requestOrigin || env.FRONTEND_ORIGIN || 'https://vibecoded-stocard.pages.dev';
-  const magicUrl      = `${origin}/?magic=${token}`;
+  const origin   = requestOrigin(request, env);
+  const magicUrl = `${origin}/?magic=${token}`;
 
   const result = await sendBrevoEmail({
     apiKey:    env.BREVO_API_KEY,
@@ -31,7 +29,7 @@ export async function magicSend(request: Request, env: Env): Promise<Response> {
     fromEmail: env.EMAIL_FROM      || 'noreply@cardex.app',
     fromName:  env.EMAIL_FROM_NAME || 'Cardex',
     subject:   'Your Cardex sign-in link',
-    html:      buildEmailHtml(magicUrl),
+    html:      buildMagicEmailHtml(magicUrl),
   });
 
   if (!result.ok) {
@@ -59,50 +57,3 @@ export async function magicVerify(request: Request, env: Env): Promise<Response>
   return jsonResponse({ token: jwtToken, userId: data.userId, username: user.username }, 200, env);
 }
 
-// ── Brevo helper ──────────────────────────────────────────────────────────────
-
-interface BrevoOptions {
-  apiKey:    string;
-  to:        string;
-  fromEmail: string;
-  fromName:  string;
-  subject:   string;
-  html:      string;
-}
-
-async function sendBrevoEmail(opts: BrevoOptions): Promise<{ ok: boolean; body: string }> {
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method:  'POST',
-    headers: {
-      'api-key':      opts.apiKey,
-      'Content-Type': 'application/json',
-      'Accept':       'application/json',
-    },
-    body: JSON.stringify({
-      sender:      { email: opts.fromEmail, name: opts.fromName },
-      to:          [{ email: opts.to }],
-      subject:     opts.subject,
-      htmlContent: opts.html,
-    }),
-  });
-  return { ok: res.ok, body: await res.text() };
-}
-
-function buildEmailHtml(magicUrl: string): string {
-  return `
-    <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#f9f9fb;border-radius:12px">
-      <h1 style="font-size:24px;font-weight:700;margin:0 0 8px;color:#0a0a0f">Sign in to Cardex</h1>
-      <p style="color:#555;margin:0 0 28px;line-height:1.6">
-        Click the button below to sign in. This link expires in <strong>15 minutes</strong> and can only be used once.
-      </p>
-      <a href="${magicUrl}"
-         style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#7c6dfa,#fa6d9a);color:white;text-decoration:none;border-radius:10px;font-weight:600;font-size:16px">
-        Sign in to Cardex
-      </a>
-      <p style="color:#999;font-size:12px;margin:28px 0 0;line-height:1.6">
-        If you didn't request this, you can safely ignore this email.<br/>
-        Or copy this link:<br/>
-        <a href="${magicUrl}" style="color:#7c6dfa;word-break:break-all">${magicUrl}</a>
-      </p>
-    </div>`;
-}
