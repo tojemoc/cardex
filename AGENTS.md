@@ -40,3 +40,25 @@ The worker reads `Origin` header and reflects it in CORS responses. `http://loca
 
 ### Passkey auth on localhost
 Chrome allows WebAuthn on `localhost` without HTTPS. The worker's `FRONTEND_RP_ID` in `wrangler.toml` points to production; passkey registration will fail locally with an RP ID mismatch. Card management (add/edit/delete) works fully in offline/localStorage mode without authentication.
+
+### Releasing to production
+Production deploys are **tag-driven**, not branch pushes. Pushing to `main` alone does not release.
+
+**Always use the release script** — do not create tags manually with `git tag`:
+```bash
+git checkout main && git pull
+npm run release
+```
+This runs `npm version patch`, which:
+1. Bumps `version` in `package.json` (and `package-lock.json`)
+2. Commits that bump (e.g. message `2.1.5`)
+3. Creates a matching git tag (e.g. `v2.1.5`)
+4. Pushes `main` and the tag
+
+The tag push triggers `.github/workflows/release.yml`, which deploys the Worker and frontend (via `wrangler pages deploy`) to production.
+
+The in-app version shown in Settings comes from `package.json` at build time (`__APP_VERSION__` in `vite.config.ts`), so skipping the version bump leaves the UI on the old version even after deploy.
+
+**Ignore `pages-build-deployment` in GitHub Actions** — that is Cloudflare Pages' optional Git-integration build on `main` pushes. Production frontend deploys go through the **Release to Production** workflow on `v*` tags, not that job.
+
+For a specific version instead of the next patch: `npm version 2.2.0 -m "2.2.0" && git push && git push --tags`
