@@ -37,7 +37,7 @@ jobs:
           accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           # Deploys to a staging environment defined in wrangler.toml
-          command:          deploy --env staging
+          command:          deploy --env staging --autoconfig=false
 
   deploy-frontend-staging:
     runs-on: blacksmith-4vcpu-ubuntu-2404
