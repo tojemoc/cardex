@@ -310,8 +310,13 @@ export function updateFormPreview(): void {
   }
 
   wrap.innerHTML = '<svg id="form-barcode-svg"></svg>';
-  if (!renderBarcode('form-barcode-svg', number, format))
-    wrap.innerHTML = `<p class="preview-error">⚠️ Invalid for ${format}. Try CODE 128 or QR.</p>`;
+  if (!renderBarcode('form-barcode-svg', number, format)) {
+    wrap.replaceChildren();
+    const p = document.createElement('p');
+    p.className = 'preview-error';
+    p.textContent = `⚠️ Invalid for ${format}. Try CODE 128 or QR.`;
+    wrap.appendChild(p);
+  }
 }
 
 // ── Pickers ───────────────────────────────────────────────────────────────────

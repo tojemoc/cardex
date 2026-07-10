@@ -1,5 +1,5 @@
-// JsBarcode and QRCode are declared in src/globals.d.ts
-// They are loaded via CDN <script> tags in index.html
+import JsBarcode from 'jsbarcode';
+import QRCode     from 'qrcode';
 
 export function renderBarcode(svgId: string, number: string, format: string): boolean {
   const el = document.getElementById(svgId);
@@ -22,15 +22,13 @@ export function renderBarcode(svgId: string, number: string, format: string): bo
 export function renderQR(containerId: string, number: string): void {
   const el = document.getElementById(containerId);
   if (!el || !number) return;
-  el.innerHTML = '';
-  try {
-    new QRCode(el, {
-      text:         number,
-      width:        180,
-      height:       180,
-      colorDark:    '#111',
-      colorLight:   '#fff',
-      correctLevel: 2, // QRCode.CorrectLevel.M
-    });
-  } catch { /* invalid value */ }
+  el.replaceChildren();
+  const canvas = document.createElement('canvas');
+  QRCode.toCanvas(canvas, number, {
+    width:  180,
+    margin: 1,
+    color:  { dark: '#111', light: '#fff' },
+  })
+    .then(() => el.appendChild(canvas))
+    .catch(() => { /* invalid value */ });
 }

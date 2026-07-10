@@ -61,8 +61,7 @@ export default {
 
     } catch (err) {
       console.error(err);
-      const detail = err instanceof Error ? err.message : String(err);
-      response = jsonResponse({ error: 'Internal error', detail }, 500, env);
+      response = jsonResponse({ error: 'Internal error' }, 500, env);
     }
 
     // Stamp CORS headers onto every response — single place, covers all handlers.

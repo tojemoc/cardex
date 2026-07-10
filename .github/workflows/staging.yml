@@ -13,6 +13,8 @@ jobs:
   deploy-worker-staging:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Deploy Worker (staging)
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
 
@@ -41,6 +43,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Deploy Frontend (staging)
     needs: deploy-worker-staging
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
 

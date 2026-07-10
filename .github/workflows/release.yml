@@ -9,6 +9,8 @@ jobs:
   deploy-worker-production:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Deploy Worker (production)
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -43,6 +45,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Deploy Frontend (production)
     needs: deploy-worker-production
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
         with:
