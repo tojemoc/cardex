@@ -4,6 +4,7 @@ import pkg              from './package.json';
 
 export default defineConfig({
   optimizeDeps: {
+    include: ['jsbarcode', 'qrcode'],
     // WASM polyfill must not be pre-bundled by Vite
     exclude: ['@undecaf/barcode-detector-polyfill', '@undecaf/zbar-wasm'],
   },
@@ -31,16 +32,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Cache CDN barcode libs so they work offline
         runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/cdnjs\.cloudflare\.com\/.*/i,
-            handler:    'CacheFirst',
-            options: {
-              cacheName:  'cdn-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
             handler:    'CacheFirst',
