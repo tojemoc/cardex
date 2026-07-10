@@ -1,0 +1,6 @@
+# Cardex deploys the frontend via Cloudflare Pages and the API via worker/wrangler.toml.
+# This file exists only to prevent Wrangler autoconfig from opening configuration PRs
+# when Workers Builds scans the repo root (Vite frontend with no Worker entry point).
+# Production deploys run through GitHub Actions — do not `wrangler deploy` from here.
+name = "cardex"
+compatibility_date = "2024-01-01"

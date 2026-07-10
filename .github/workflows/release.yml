@@ -39,7 +39,7 @@ jobs:
           apiToken:         ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId:        ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
-          command:          deploy   # default env = production
+          command:          deploy --autoconfig=false   # default env = production
 
   deploy-frontend-production:
     runs-on: blacksmith-4vcpu-ubuntu-2404
